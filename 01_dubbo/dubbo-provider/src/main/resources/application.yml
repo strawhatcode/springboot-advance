@@ -1,0 +1,15 @@
+dubbo:
+  application:
+    name: dubbo-provider2     #必填，服务提供者的名称，默认值是${spring.application.name}
+  registry:
+    address: zookeeper://192.168.229.130:2181  #注册中心的地址
+  config-center:
+    address: zookeeper://192.168.229.130:2181  #控制中心地址
+  metadata-report:
+    address: zookeeper://192.168.229.130:2181  #元数据报告，设置后可以查看元数据，dubbo需2.7以上
+  protocal:
+    name: dubbo #使用dubbo协议
+    port: 20880 #协议端口号
+
+server:
+  port: 9000  #服务的端口号
