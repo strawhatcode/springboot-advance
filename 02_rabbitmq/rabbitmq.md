@@ -75,8 +75,9 @@
   rabbitmq:management
   ```
   
+
  **rabbitmq02**：
-  
+
   ```
   docker 
   run 
@@ -90,9 +91,9 @@
   -v $PWD/myrabbitmq02/:/var/lib/rabbitmq/ 
   rabbitmq:management
   ```
-  
+
   **rabbitmq03**:
-  
+
   ```
   docker 
   run 
@@ -107,23 +108,23 @@
   -v $PWD/myrabbitmq03/:/var/lib/rabbitmq/ 
   rabbitmq:management
   ```
-  
+
    **--link**参数是连接两个或多个容器来进行通信。
-  
+
    `--link <name or id>:alias`
-  
+
   >**解释：**
   >
   >**name**或**id**：是源容器的**名称**或**id**，如第一个容器中设置的**--name**参数的名称。
   >
   >alias： 是源容器在link下的别名 
+
   
-  
-  
+
   然后把容器加入集群。
-  
+
   首先进入第一个容器节点**myrabbitmq**，输入下面5条命令
-  
+
   ```
   docker exec -it myrabbitmq bash    //进入myrabbitmq容器
   rabbitmqctl stop_app               //停止
@@ -143,9 +144,9 @@
   root@rabbitmq:/# exit
   exit  
   ```
-  
+
   然后进入第二个容器节点**myrabbitmq02**，输入下面6条命令
-  
+
   ```
   docker exec -it myrabbitmq02 bash   //进入myrabbitmq02容器
   rabbitmqctl stop_app                //停止
@@ -168,9 +169,9 @@
   root@rabbitmq02:/# exit
   exit
   ```
-  
+
   最后进入第三个容器节点**myrabbitmq03**，输入下面6条命令
-  
+
   ```
   docker exec -it myrabbitmq02 bash   //进入myrabbitmq03容器
   rabbitmqctl stop_app                //停止
@@ -193,9 +194,9 @@
   root@rabbitmq03:~# exit
   exit
   ```
-  
+
   完成后在浏览器输入`localhost:15672`登录rabbitmq的管理页面,帐号密码都是*guest*，可以看到结果如下
-  
+
   ![](images/2.jpg)
 
 ## 三、使用RabbitMQ
@@ -741,6 +742,206 @@ public class MqReceiverFanoutExchange {
 
 
 ##### - **topic Exchange交换机**
+
+>解释:
+>
+>topic交换机最大特点是可以根据通配符【*****(星号)】和【**#**(井号)】来匹配路由键
+>
+>*****(星号) ：可以匹配**一个**单词，如路由键为【**aa.bb.cc**】时，【**aa.bb.***】、【***.bb.cc**】和【**aa.*.cc**】可以匹配得				到路由键，其他的都无法正确匹配
+>
+>**#**(井号) ：可以匹配**任意个**单词(**包括0个**)，
+
+**模型图**
+
+
+
+1. **测试【*(星号)】代码实现**
+
+   
+
+   - 在**rabbitmqConfiguration**类中创建消息队列和交换器，并且把他们绑定起来
+
+   ```java
+   @Bean
+   public Queue topicQueue_A(){
+       return new Queue("topicQueueA");
+   }
+   
+   @Bean
+   public TopicExchange topicExchange(){
+       return new TopicExchange("topicExchange");
+   }
+   
+   @Bean
+   public Binding bindTopicExchange_A1(){
+       return BindingBuilder.bind(topicQueue_A()).to(topicExchange()).with("topic.aa.*");
+   }
+   @Bean
+   public Binding bindTopicExchange_A2(){
+       return BindingBuilder.bind(topicQueue_A()).to(topicExchange()).with("*.topic.aa");
+   }
+   @Bean
+   public Binding bindTopicExchange_A3(){
+       return BindingBuilder.bind(topicQueue_A()).to(topicExchange()).with("topic.*.bb");
+   }
+   ```
+
+   - 创建**MqSenderTopicExchange**类作为消息发布者
+
+   ```java
+   package com.hat.rabbitmq.mqsender;
+   
+   import org.slf4j.Logger;
+   import org.slf4j.LoggerFactory;
+   import org.springframework.amqp.core.AmqpTemplate;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.stereotype.Component;
+   
+   @Component
+   public class MqSenderTopicExchange {
+       private final static Logger log = LoggerFactory.getLogger(MqSenderTopicExchange.class);
+   
+       @Autowired
+       AmqpTemplate rabbitTemplate;
+   
+       //发布消息,这里为了方便测试，把路由键也作为参数传过来
+       public void SenderA(String msg,String routingkey){
+           rabbitTemplate.convertAndSend("topicExchange",routingkey,msg);
+           log.info("【SenderA】发布消息成功————"+msg);
+       }
+   }
+   
+   ```
+
+   - 创建**MqReceiverTopicExchange**类作为消息消费者
+
+   ```java
+   package com.hat.rabbitmq.mqreceiver;
+   
+   import org.slf4j.Logger;
+   import org.slf4j.LoggerFactory;
+   import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+   import org.springframework.amqp.rabbit.annotation.RabbitListener;
+   import org.springframework.stereotype.Component;
+   
+   @Component
+   public class MqReceiverTopicExchange {
+       private final static Logger log = LoggerFactory.getLogger(MqReceiverTopicExchange.class);
+   
+       //消息消费者，监听topicQueueA队列
+       @RabbitListener(queues = "topicQueueA")
+       @RabbitHandler
+       public void ReceiverA(String msg){
+           log.info("[ReceiverA]接收到消息-----["+msg+"]");
+       }
+   }
+   
+   ```
+
+   - 测试结果
+
+   ```java
+       @Autowired
+       MqSenderTopicExchange topicSender;
+       @Test
+       public void testtopic(){
+           topicSender.SenderA("发送的路由键为[topic.aa.test1]--1", "topic.aa.test1");
+           topicSender.SenderA("发送的路由键为[topic.aa.bb.test1.tt]--2", "topic.aa.test1.tt");
+           topicSender.SenderA("发送的路由键为[topic.bb.aa]--3", "topic.bb.aa");
+           topicSender.SenderA("发送的路由键为[topic.test1.bb]--4", "topic.test1.bb");
+           topicSender.SenderA("发送的路由键为[topic.aa]--5", "topic.aa");
+           topicSender.SenderA("发送的路由键为[test1.topic.aa]--6", "test1.topic.aa");
+           topicSender.SenderA("发送的路由键为[tt.test1.topic.aa]--7", "tt.test1.topic.aa");
+       }
+   ```
+
+   - 测试结果
+
+   ![](images/13.jpg)
+
+   >分析：
+   >
+   >在配置文件中，我对**topicQueueA**队列根据3种不同的路由键绑定topic交换机，且路由键匹配规则都不一样，分别为**`【topic.aa.*】`、`【*.topic.aa】`、`【topic.*.bb】`**
+   >
+   >测试结果中只有 ***1、4、6***符合匹配条件，因此只有 ***1、4、6***这3条消息成功发布到队列中
+
+   
+
+2. **测试【#(井号)】代码实现**
+
+   - 在**rabbitmqConfiguration**增加一个topic交换机与**topicQueueB**队列绑定
+
+   ```java
+   @Bean
+   public Queue topicQueue_B(){
+   	return new Queue("topicQueueB");
+   }
+   
+   @Bean
+   public TopicExchange topicExchangeB(){
+   	return new TopicExchange("topicExchangeB");
+   }
+   
+   @Bean
+   public Binding bindTopicExchange_B1(){
+   	return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("topic.aa.#");
+   }
+   @Bean
+   public Binding bindTopicExchange_B2(){
+   	return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("#.topic.aa");
+   }
+   @Bean
+   public Binding bindTopicExchange_B3(){
+   	return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("topic.#.bb");
+   }
+   
+   ```
+
+   - 在**MqSenderTopicExchange**消息发布者类中增加一个新的发布者
+
+   ```java
+    public void SenderB(String msg, String routingkey){
+        rabbitTemplate.convertAndSend("topicExchangeB",routingkey,msg);
+        log.info("【SenderB】发布消息成功————"+msg);
+    }
+   ```
+
+   - 在**MqReceiverTopicExchange**类中增加一个消费者
+
+   ```java
+   @RabbitListener(queues = "topicQueueB")
+   @RabbitHandler
+   public void ReceiverB(String msg){
+       log.info("[ReceiverB]接收到消息-----["+msg+"]");
+   }
+   ```
+
+   - 测试代码
+
+   ```java
+   @Test
+   public void testtopicB(){
+       topicSender.SenderB("发送的路由键为[topic.aa.test1]--1", "topic.aa.test1");
+       topicSender.SenderB("发送的路由键为[topic.aa.test1.test2]--2", "topic.aa.test1.test2");
+       topicSender.SenderB("发送的路由键为[topic.aa]--3", "topic.aa");
+       topicSender.SenderB("发送的路由键为[test1.topic.aa]--4", "test1.topic.aa");
+       topicSender.SenderB("发送的路由键为[test2.test1.topic.aa]--5", "test2.test1.topic.aa");
+       topicSender.SenderB("发送的路由键为[topic.bb.aa]--6", "topic.bb.aa");
+       topicSender.SenderB("发送的路由键为[topic.aa.bb]--7", "topic.aa.bb");
+       topicSender.SenderB("发送的路由键为[test2.topic.aa.test1.bb]--8", "test2.topic.aa.test1.bb");
+       topicSender.SenderB("发送的路由键为[topic.aa.test1.bb.test2]--9", "topic.aa.test1.bb.test2");
+       topicSender.SenderB("发送的路由键为[test2.topic.aa.test1]--10", "test2.topic.aa.test1");
+       topicSender.SenderB("发送的路由键为[topic.bb]--11", "topic.bb");
+   }
+   ```
+
+   - 测试结果
+
+   ![](images\14.jpg)
+
+   > 分析：
+   >
+   > 从测试结果图中可以看出，【#】井号通配符可以匹配**任意个**单词，【#】代表的就是任意个单词，**写好指定**的单词则必须都有且顺序格式一致，否则无法匹配到相应路由键，然后**非写好定制**的单词则通过通配符来匹配。
 
 ##### - **header Exchange交换机**
 

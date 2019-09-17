@@ -1,5 +1,6 @@
 package com.hat.rabbitmq.config;
 
+import com.sun.org.apache.bcel.internal.generic.RETURN;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
@@ -120,6 +121,75 @@ public class rabbitmqConfiguration {
     @Bean
     public Binding bindFanoutExchange_C(){
         return BindingBuilder.bind(fanoutQueue_C()).to(fanoutExchange());
+    }
+
+
+    /**
+     * topic Exchange交换机(主题交换机)的队列
+     * topic交换机可以根据通配符作为匹配条件来匹配路由键，它提供了两个通配符(*)和(#)。
+     *      * ：代表一个单词，如当路由键为 aa.bb.cc,则 aa.* 无法匹配到此路由键，aa.bb.* 或者 *.bb.cc 或者 aa.*.cc则可以匹配
+     *      # ：代表任意个单词，如当路由键为 aa.bb.cc，则aa.#可以匹配，它可以匹配后面任意个单词(0个也可以)
+     * @return
+     */
+    @Bean
+    public Queue topicQueue_A(){
+        return new Queue("topicQueueA");
+    }
+    @Bean
+    public Queue topicQueue_B(){
+        return new Queue("topicQueueB");
+    }
+    @Bean
+    public Queue topicQueue_C(){
+        return new Queue("topicQueueC");
+    }
+
+    /**
+     * 创建topic交换机
+     * @return
+     */
+    @Bean
+    public TopicExchange topicExchange(){
+        return new TopicExchange("topicExchange");
+    }
+    @Bean
+    public TopicExchange topicExchangeB(){
+        return new TopicExchange("topicExchangeB");
+    }
+
+    /**
+     * 绑定消息队列与交换机
+     *  这里3个绑定是用来测试 （*）通配符的
+     * @return
+     */
+    @Bean
+    public Binding bindTopicExchange_A1(){
+        return BindingBuilder.bind(topicQueue_A()).to(topicExchange()).with("topic.aa.*");
+    }
+    @Bean
+    public Binding bindTopicExchange_A2(){
+        return BindingBuilder.bind(topicQueue_A()).to(topicExchange()).with("*.topic.aa");
+    }
+    @Bean
+    public Binding bindTopicExchange_A3(){
+        return BindingBuilder.bind(topicQueue_A()).to(topicExchange()).with("topic.*.bb");
+    }
+
+    /**
+     * 这里3个绑定是用来测试 （#）通配符的
+     * @return
+     */
+    @Bean
+    public Binding bindTopicExchange_B1(){
+        return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("topic.aa.#");
+    }
+    @Bean
+    public Binding bindTopicExchange_B2(){
+        return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("#.topic.aa");
+    }
+    @Bean
+    public Binding bindTopicExchange_B3(){
+        return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("topic.#.bb");
     }
 
 
