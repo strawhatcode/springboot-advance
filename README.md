@@ -1,4 +1,5 @@
 # springboot进阶学习
 ## 一、dubbo
-###  [dubbo相关](01_dubbo/README.md)
-
+###  [dubbo学习](01_dubbo/README.md)
+## 二、rabbitmq
+### [rabbitmq学习(注解方式)](02_rabbitmq/rabbitmq.md)
