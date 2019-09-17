@@ -65,21 +65,18 @@
   ```
   docker 
   run 
--d 
+  -d 
   -p 15672:15672 
--p 5672:5672 
+  -p 5672:5672 
   --hostname rabbitmq 
---name myrabbitmq 
+  --name myrabbitmq 
   -e RABBITMQ_ERLANG_COOKIE='rabbitmqCookie' 
   -v $PWD/myrabbitmq/:/var/lib/rabbitmq/ 
   rabbitmq:management
   ```
   
-
+ **rabbitmq02**：
   
-
-**rabbitmq02**：
-
   ```
   docker 
   run 
@@ -93,9 +90,9 @@
   -v $PWD/myrabbitmq02/:/var/lib/rabbitmq/ 
   rabbitmq:management
   ```
-
+  
   **rabbitmq03**:
-
+  
   ```
   docker 
   run 
@@ -110,20 +107,23 @@
   -v $PWD/myrabbitmq03/:/var/lib/rabbitmq/ 
   rabbitmq:management
   ```
-
-  **--link**参数是连接两个或多个容器来进行通信。
-
-  `--link <name or id>:alias`
->**解释：**
->
->**name**或**id**：是源容器的**名称**或**id**，如第一个容器中设置的**--name**参数的名称。
->
->alias： 是源容器在link下的别名
-
+  
+   **--link**参数是连接两个或多个容器来进行通信。
+  
+   `--link <name or id>:alias`
+  
+  >**解释：**
+  >
+  >**name**或**id**：是源容器的**名称**或**id**，如第一个容器中设置的**--name**参数的名称。
+  >
+  >alias： 是源容器在link下的别名 
+  
+  
+  
   然后把容器加入集群。
-
+  
   首先进入第一个容器节点**myrabbitmq**，输入下面5条命令
-
+  
   ```
   docker exec -it myrabbitmq bash    //进入myrabbitmq容器
   rabbitmqctl stop_app               //停止
@@ -139,13 +139,13 @@
   Resetting node rabbit@rabbitmq ...
   root@rabbitmq:/# rabbitmqctl start_app
   Starting node rabbit@rabbitmq ...
-   completed with 3 plugins.
+  completed with 3 plugins.
   root@rabbitmq:/# exit
-  exit
+  exit  
   ```
-
+  
   然后进入第二个容器节点**myrabbitmq02**，输入下面6条命令
-
+  
   ```
   docker exec -it myrabbitmq02 bash   //进入myrabbitmq02容器
   rabbitmqctl stop_app                //停止
@@ -164,13 +164,13 @@
   Clustering node rabbit@rabbitmq02 with rabbit@rabbitmq
   root@rabbitmq02:/# rabbitmqctl start_app
   Starting node rabbit@rabbitmq02 ...
-   completed with 3 plugins.
+  completed with 3 plugins.
   root@rabbitmq02:/# exit
   exit
   ```
-
+  
   最后进入第三个容器节点**myrabbitmq03**，输入下面6条命令
-
+  
   ```
   docker exec -it myrabbitmq02 bash   //进入myrabbitmq03容器
   rabbitmqctl stop_app                //停止
@@ -193,12 +193,10 @@
   root@rabbitmq03:~# exit
   exit
   ```
-
+  
   完成后在浏览器输入`localhost:15672`登录rabbitmq的管理页面,帐号密码都是*guest*，可以看到结果如下
-
-  ![](./images/2.jpg)
-
-
+  
+  ![](images/2.jpg)
 
 ## 三、使用RabbitMQ
 
