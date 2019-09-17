@@ -1,0 +1,6 @@
+spring:
+  rabbitmq:
+    host: 192.168.229.130    #rabbitmq服务器的地址
+    username: guest          #登录帐号，默认是guest
+    password: guest          #登录密码，默认是guest
+    port: 5672               #rabbitmq服务器占用的端口号，默认5672
