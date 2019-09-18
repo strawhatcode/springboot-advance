@@ -1,12 +1,10 @@
 package com.hat.rabbitmq;
 
 import com.hat.rabbitmq.mqreceiver.MqReceiverNoExchange;
-import com.hat.rabbitmq.mqsender.MqSenderDirectExchange;
-import com.hat.rabbitmq.mqsender.MqSenderFanoutExchange;
-import com.hat.rabbitmq.mqsender.MqSenderNoExchange;
-import com.hat.rabbitmq.mqsender.MqSenderTopicExchange;
+import com.hat.rabbitmq.mqsender.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -81,4 +79,28 @@ public class ApplicationTests {
         topicSender.SenderB("发送的路由键为[test2.topic.aa.test1]--10", "test2.topic.aa.test1");
         topicSender.SenderB("发送的路由键为[topic.bb]--11", "topic.bb");
     }
+
+    @Autowired
+    MqSenderHeadersExchange headerSender;
+
+    @Test
+    public void testheader(){
+
+        MessageProperties properties1 = new MessageProperties();
+        properties1.setHeader("key2","value2");
+
+        MessageProperties properties2 = new MessageProperties();
+        properties2.setHeader("key1","value1");
+        properties2.setHeader("key2","value2");
+
+        MessageProperties properties3 = new MessageProperties();
+        properties3.setHeader("key2","value2");
+        properties3.setHeader("key1","value1");
+        properties3.setHeader("key3","value3");
+
+        headerSender.Sender("1--发送的header为[k2,v2]",properties1);
+        headerSender.Sender("2--发送的header为[k1,v1、k2,v2]",properties2);
+        headerSender.Sender("3--发送的header为[k1,v1、k2,v2、k3,v3]",properties3);
+    }
+
 }

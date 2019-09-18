@@ -749,15 +749,15 @@ public class MqReceiverFanoutExchange {
 >
 >【  *  (星号)  】：
 >
->​		*可以匹配**一个**单词，如路由键为【**aa.bb.cc**】时，【**aa.bb.***】、【***.bb.cc**】和【**aa.*.cc**】可以匹配得到路		由键，其他的都无法正确匹配
+>​		*可以匹配**一个**单词，如路由键为【**aa.bb.cc**】时，【**aa.bb.***】、【***.bb.cc**】和【**aa.*.cc**】可以匹配得到路由键，其他的都无法正确匹配
 >
 >【  #  (井号)  】：
 >
->​		可以匹配**任意个**单词(**包括0个**)，
+>​		可以匹配**任意个**单词(**包括0个**)，如 **【aa.#】**可以匹配到**[aa.bb]**或者**[aa.bb.cc]**或者**[aa]**，总之**开头是[aa]**，后面接**多少个单词都可以**，**0个也可以**；**【#.aa】**则**结尾是[aa]**，**前面接任意个单词都可以**；**【aa.#.bb】**则**开头是[aa]且结尾是[bb]**，**中间可以接任意个单词**，**注意：单词之间都要用点(.)分隔开来**
 
 **模型图**
 
-
+![](images/16.jpg)
 
 1. **测试【*(星号)】代码实现**
 
@@ -947,7 +947,160 @@ public class MqReceiverFanoutExchange {
    >
    > 从测试结果图中可以看出，【#】井号通配符可以匹配**任意个**单词，【#】代表的就是任意个单词，**写好指定**的单词则必须都有且顺序格式一致，否则无法匹配到相应路由键，然后**非写好定制**的单词则通过通配符来匹配。
 
+
+
 ##### - **header Exchange交换机**
 
+> 解释：
+>
+> **headers Exchange**模式交换机与**fanout Exchange**一样不需要**routingkey**(路由键)，但是**headers交换机**是使用一个**header**来替代**routingKey**，**routingKey**只可以匹配**string**类型，而**header**是匹配一个以**key-value**存储的**对象**。
+>
+> **headers交换机**有两种匹配方式，**all**和**any**
+>
+> **all：**完全匹配**header**中**所有key-value**，可以多，不可以少
+>
+> **any：**任意匹配**一个key-value**即可。可以多，也可以少
 
+**模型图**
 
+![](images/17.jpg)
+
+**代码实现**
+
+- 在**rabbitmqConfiguration**类创建队列和交换机
+
+```java
+	@Bean
+    public Queue headerQueueA(){
+        return new Queue("headerQueueA");
+    }
+    @Bean
+    public Queue headerQueueB(){
+        return new Queue("headerQueueB");
+    }
+
+    /**
+     * 创建headers Exchange交换机
+     * @return
+     */
+    @Bean
+    public HeadersExchange headersExchange(){
+        return new HeadersExchange("headersExchange");
+    }
+
+    /**
+     * 绑定headers Exchange和消息队列。
+     *      whereAll：全属性匹配，还有[whereAny],是部分匹配。 这里参数是一个map对象(headers)
+     *      match：就是匹配
+     * @return
+     */
+    @Bean
+    public Binding bindHeadersExchangeAll(){
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("key1","value1");
+        headers.put("key2","value2");
+        return BindingBuilder.bind(headerQueueA()).to(headersExchange()).whereAll(headers).match();
+    }
+
+    @Bean
+    public Binding bindHeadersExchangeAny(){
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("key1","value1");
+        headers.put("key2","value2");
+        return BindingBuilder.bind(headerQueueB()).to(headersExchange()).whereAny(headers).match();
+    }
+```
+
+- 创建消息发布者类**MqSenderHeadersExchange**
+
+```java
+package com.hat.rabbitmq.mqsender;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class MqSenderHeadersExchange {
+    private static final Logger log = LoggerFactory.getLogger(MqSenderHeadersExchange.class);
+
+    @Autowired
+    RabbitTemplate rabbitTemplate;
+
+    public void Sender(String body, MessageProperties properties){
+        Message msg = new Message(body.getBytes(), properties);
+        rabbitTemplate.convertAndSend("headersExchange","",msg);
+        log.info("【Headers Sender】使用的header为[ "+properties.getHeaders()+ "],发布的消息---["+body+"]");
+    }
+}
+```
+
+- 创建消费者类**MqReceiverHeadersExchange**
+
+```java
+package com.hat.rabbitmq.mqreceiver;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class MqReceiverHeadersExchange {
+    private static final Logger log = LoggerFactory.getLogger(MqReceiverHeadersExchange.class);
+
+    @RabbitListener(queues = "headerQueueA")
+    @RabbitHandler
+    public void ReceiverAll(Message msg){
+        log.info("[ Receiver（All）]收到消息---["+new String(msg.getBody())+"]");
+    }
+
+    @RabbitListener(queues = "headerQueueB")
+    @RabbitHandler
+    public void ReceiverAny(Message msg){
+        log.info("[ Receiver（Any）]收到消息---["+new String(msg.getBody())+"]");
+    }
+}
+
+```
+
+- 创建测试
+
+```java
+    @Autowired
+    MqSenderHeadersExchange headerSender;
+
+    @Test
+    public void testheader(){
+
+        MessageProperties properties1 = new MessageProperties();
+        properties1.setHeader("key2","value2");
+
+        MessageProperties properties2 = new MessageProperties();
+        properties2.setHeader("key1","value1");
+        properties2.setHeader("key2","value2");
+
+        MessageProperties properties3 = new MessageProperties();
+        properties3.setHeader("key2","value2");
+        properties3.setHeader("key1","value1");
+        properties3.setHeader("key3","value3");
+
+        headerSender.Sender("1--发送的header为[k2,v2]",properties1);
+        headerSender.Sender("2--发送的header为[k1,v1、k2,v2]",properties2);
+        headerSender.Sender("3--发送的header为[k1,v1、k2,v2、k3,v3]",properties3);
+    }
+```
+
+- 测试结果如下
+
+![](images/15.jpg)
+
+>分析：
+>
+>从结果可以看出，使用**All**匹配模式时要**完全匹配header**，**key-value**的个数**超过**绑定时的header时也**可以匹配**，**少于**就**无法匹配**。当使用**Any**时，只要有一个**key-value**匹配到绑定时的header，即成功匹配，即至少有一个**key-value**属性与header匹配则成功匹配

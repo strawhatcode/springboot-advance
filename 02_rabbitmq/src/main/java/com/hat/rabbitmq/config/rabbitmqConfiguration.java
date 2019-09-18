@@ -7,6 +7,9 @@ import org.springframework.amqp.core.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Configuration  //把该类定义为配置类
 public class rabbitmqConfiguration {
     private static final Logger log = LoggerFactory.getLogger(rabbitmqConfiguration.class);
@@ -124,6 +127,7 @@ public class rabbitmqConfiguration {
     }
 
 
+
     /**
      * topic Exchange交换机(主题交换机)的队列
      * topic交换机可以根据通配符作为匹配条件来匹配路由键，它提供了两个通配符(*)和(#)。
@@ -138,10 +142,6 @@ public class rabbitmqConfiguration {
     @Bean
     public Queue topicQueue_B(){
         return new Queue("topicQueueB");
-    }
-    @Bean
-    public Queue topicQueue_C(){
-        return new Queue("topicQueueC");
     }
 
     /**
@@ -192,6 +192,53 @@ public class rabbitmqConfiguration {
         return BindingBuilder.bind(topicQueue_B()).to(topicExchangeB()).with("topic.#.bb");
     }
 
+
+
+    /**
+     *  headers Exchange(头部交换机)
+     *  这种交换机[不需要]路由键，但是需要一个headers消息体作为匹配条件，与http的headers相似，
+     *  它与routingKey的区别是可以匹配object类型的属性，而routingKey只能匹配string类型的属性
+     * @return
+     */
+    @Bean
+    public Queue headerQueueA(){
+        return new Queue("headerQueueA");
+    }
+    @Bean
+    public Queue headerQueueB(){
+        return new Queue("headerQueueB");
+    }
+
+    /**
+     * 创建headers Exchange交换机
+     * @return
+     */
+    @Bean
+    public HeadersExchange headersExchange(){
+        return new HeadersExchange("headersExchange");
+    }
+
+    /**
+     * 绑定headers Exchange和消息队列。
+     *      whereAll：全属性匹配，还有[whereAny],是部分匹配。 这里参数是一个map对象(headers)
+     *      match：就是匹配
+     * @return
+     */
+    @Bean
+    public Binding bindHeadersExchangeAll(){
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("key1","value1");
+        headers.put("key2","value2");
+        return BindingBuilder.bind(headerQueueA()).to(headersExchange()).whereAll(headers).match();
+    }
+
+    @Bean
+    public Binding bindHeadersExchangeAny(){
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("key1","value1");
+        headers.put("key2","value2");
+        return BindingBuilder.bind(headerQueueB()).to(headersExchange()).whereAny(headers).match();
+    }
 
 
 }
