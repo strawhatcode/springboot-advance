@@ -865,7 +865,7 @@ public class MqReceiverFanoutExchange {
 
    >分析：
    >
-   >在配置文件中，我对**topicQueueA**队列根据3种不同的路由键绑定topic交换机，且路由键匹配规则都不一样，分别为**`【topic.aa.*】`、`【*.topic.aa】`、`【topic.*.bb】`**
+   >在配置文件中，我对**topicQueueA**队列根据3种不同的路由键绑定topic交换机，且路由键匹配规则都不一样，分别为`【topic.aa.*】`、`【*.topic.aa】`、`【topic.*.bb】`
    >
    >测试结果中只有 ***1、4、6***符合匹配条件，因此只有 ***1、4、6***这3条消息成功发布到队列中
 
@@ -1104,3 +1104,83 @@ public class MqReceiverHeadersExchange {
 >分析：
 >
 >从结果可以看出，使用**All**匹配模式时要**完全匹配header**，**key-value**的个数**超过**绑定时的header时也**可以匹配**，**少于**就**无法匹配**。当使用**Any**时，只要有一个**key-value**匹配到绑定时的header，即成功匹配，即至少有一个**key-value**属性与header匹配则成功匹配
+
+##### - **消息发布者确认机制**
+
+>消息发布者在发布消息时，有可能会发送失败，原因可能**交换机不存在**或者**匹配的路由键不存在**，也可能是**网络问题**，在传输过程中出现问题，而正常情况下，我们是不知道消息是否成功发送到队列中。
+>
+>因此RabbitMQ提供了两种消息发布者确认机制，一种是使用**事务机制**，一种是**Confirm**发布者确认机制
+>
+>**Confirm**确认机制：
+>
+>​		**ConfirmCallback**用来判断消息是否到达**Exchange**，不管成功还是失败，**broker(rabbitmq服务端)**都会返回一个**ack**，这个**ack**是一个**boolean**值，当**ack**为**True**时，表明消息**已经到达Exchange**，当**ack**为**False**时则消息**没有到达Exchange**，原因可能是**Exchange**，也可能是其他原因导致的消息无法找到**Exchange**，然后我们可以使用**ConfirmCallback**来接收**ack**且根据**ack**来做出相应的操作。
+>
+>​		**ReturnCallback**用来判断消息是否根据路由键匹配到队列，如果**能**路由到队列，则**不触发回调**，如果**不能**路由到队列，则**会触发回调**，然后可以在回调方法中作出相应操作
+
+**Confirm**的实现
+
+- 在**application.yml**配置文件中添加配置 
+
+  `publisher-confirms: true` 配置开启confirm消息确认机制(ConfirmCallback)
+
+  `publisher-returns: true` 配置开启ReturnCallback
+
+- 在**rabbitmqConfiguration**配置类中添加如下代码
+
+```java
+    //注入CachingConnectionFactory连接工厂，可以设置或者获取yml配置文件中的配置
+    @Autowired
+    private CachingConnectionFactory factory;
+    @Bean
+    public RabbitTemplate rabbitTemplate(){
+        RabbitTemplate rabbit = new RabbitTemplate(factory); //实例化rabbitTemplate模版连接
+        /**
+         * 消息发布到broker就会回调
+         * 参数：
+         *      correlationData：消息唯一id，确保每个消息都有一个唯一id
+         *      ack：是否成功，true为可以到达交换机，false则不可以到达交换机
+         *      cause：如果ack为false时，不能到达交换机的原因
+         */
+        rabbit.setConfirmCallback((correlationData, ack, cause) -> {
+            if (ack){
+                log.info("到达Exchange成功：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
+            }else {
+                log.info("到达Exchange失败：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
+            }
+        });
+
+        /**
+         * 当消息路由到队列失败时回调
+         * 参数：
+         *      message：消息内容
+         *      replyCode：返回编码
+         *      replyText：返回内容
+         *      exchange： 交换机名称
+         *      routingKey：路由键
+         */
+        rabbit.setMandatory(true);  //一定要设置setMandatory为True，不然失败时无法回调
+        rabbit.setReturnCallback((message, replyCode, replyText, exchange, routingKey) -> {
+            log.info("消息丢失:exchange({}),route({}),replyCode({}),replyText({}),message:{}",
+                    exchange,routingKey,replyCode,replyText,message);
+        });
+        
+        return rabbit;
+    }
+```
+
+
+
+
+
+
+
+##### - **manual acknowledgements**（手动确认）
+
+> 解释：
+>
+> 上面的四种交换机方式用的都是**消息自动确认模式（nack）**，而这种方式存在一些问题，比如消息发布者只要把消息发送成功，不管消费者是否处理完成，就把该消息标记为完成，然后在队列中删除该消息。假如消费者在处理消息的过程中突然宕机了，那么该消息没有被完全处理，而发布者也已经把该消息删除，从而造成消息丢失。
+>
+> 因此，可以是用**消息手动确认模式（ack）**模式来处理消息是否被成功消费。当使用**ack**模式时，消费者把消息处理完成后会返回一个**标志**给**RabbitMQ**，当**RabbitMQ**收到这个**标志**后才会认定该消息被成功消费，然后再把该消息从队列中删除，从而避免了消息还没有被成功消费就丢失。
+
+- 实现代码
+  - 在

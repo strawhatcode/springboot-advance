@@ -1,6 +1,5 @@
 package com.hat.rabbitmq;
 
-import com.hat.rabbitmq.mqreceiver.MqReceiverNoExchange;
 import com.hat.rabbitmq.mqsender.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -15,8 +14,7 @@ public class ApplicationTests {
 
     @Autowired
     MqSenderNoExchange mqSender;
-    @Autowired
-    MqReceiverNoExchange mqReceiver;
+
 
     @Autowired
     MqSenderDirectExchange directSender;
@@ -101,6 +99,18 @@ public class ApplicationTests {
         headerSender.Sender("1--发送的header为[k2,v2]",properties1);
         headerSender.Sender("2--发送的header为[k1,v1、k2,v2]",properties2);
         headerSender.Sender("3--发送的header为[k1,v1、k2,v2、k3,v3]",properties3);
+    }
+
+
+    @Autowired
+    MqSender sender;
+
+    @Test
+    public void testsender(){
+//        sender.Sender("directExchange","directA","[ 1、directExchange、directA的消息]");
+//        sender.Sender("exchange.no","keyno","[ 1、exchange.no、keyno的消息]");
+        sender.Sender("directExchange","keyno","[ 2、directExchange、keyno的消息]");
+
     }
 
 }

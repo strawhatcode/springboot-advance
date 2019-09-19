@@ -4,3 +4,24 @@ spring:
     username: guest          #登录帐号，默认是guest
     password: guest          #登录密码，默认是guest
     port: 5672               #rabbitmq服务器占用的端口号，默认5672
+    publisher-confirms: true #发布者消息确认机制，只能判断是否到达交换机
+    publisher-returns: true  #消息路由到队列的过程中，路由键不存在则触发回调
+    template:
+      retry:
+        enabled: true   #开启消息发送失败重试
+        initial-interval: 1000   #重试的时间间隔
+        max-attempts: 3   #最大重试次数
+      #这个属性在这里配置不生效，原因未知，需要在实例化RabbitTemplate后设置这个属性为true【rabbit.setMandatory(true);】
+#     mandatory: true        #如果消息发送到消费者失败则重新进队列，false时则直接丢弃消息
+
+    listener:
+      simple:
+        acknowledge-mode:    #消息手动确认
+        retry:
+          enabled: true
+        default-requeue-rejected: false
+
+
+
+
+

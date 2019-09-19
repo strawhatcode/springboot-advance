@@ -1,9 +1,15 @@
 package com.hat.rabbitmq.config;
 
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
 import com.sun.org.apache.bcel.internal.generic.RETURN;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -240,5 +246,55 @@ public class rabbitmqConfiguration {
         return BindingBuilder.bind(headerQueueB()).to(headersExchange()).whereAny(headers).match();
     }
 
+
+    //注入CachingConnectionFactory连接工厂，可以设置或者获取yml配置文件中的配置
+    @Autowired
+    private CachingConnectionFactory factory;
+    @Bean
+    public RabbitTemplate rabbitTemplate(){
+        RabbitTemplate rabbit = new RabbitTemplate(factory); //实例化rabbitTemplate模版连接
+        /**
+         * 消息发布到broker就会回调
+         * 参数：
+         *      correlationData：消息唯一id，确保每个消息都有一个唯一id
+         *      ack：是否成功，true为可以到达交换机，false则不可以到达交换机
+         *      cause：如果ack为false时，不能到达交换机的原因
+         */
+        rabbit.setConfirmCallback((correlationData, ack, cause) -> {
+            if (ack){
+//                log.info("【到达Exchange成功】：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
+                log.info("【到达Exchange成功】：correlationData({})",correlationData);
+                log.info("【到达Exchange成功】：ack({})",ack);
+                log.info("【到达Exchange成功】：cause({})",cause);
+            }else {
+//                log.info("【到达Exchange失败】：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
+                log.info("【到达Exchange失败】：correlationData({})",correlationData);
+                log.info("【到达Exchange失败】：ack({})",ack);
+                log.info("【到达Exchange失败】：cause({})",cause);
+            }
+        });
+
+        /**
+         * 当消息路由到队列失败时回调
+         * 参数：
+         *      message：消息内容
+         *      replyCode：返回编码
+         *      replyText：返回内容
+         *      exchange： 交换机名称
+         *      routingKey：路由键
+         */
+        rabbit.setMandatory(true);  //一定要设置setMandatory为True，不然失败时无法回调
+        rabbit.setReturnCallback((message, replyCode, replyText, exchange, routingKey) -> {
+//            log.info("【消息丢失】:exchange({}),route({}),replyCode({}),replyText({}),message:{}",
+//                    exchange,routingKey,replyCode,replyText,message);
+            log.info("【消息丢失】:message({})",message);
+            log.info("【消息丢失】:replyCode({})",replyCode);
+            log.info("【消息丢失】:replyText({})",replyText);
+            log.info("【消息丢失】:exchange({})",exchange);
+            log.info("【消息丢失】:routingKey({})",routingKey);
+        });
+
+        return rabbit;
+    }
 
 }
