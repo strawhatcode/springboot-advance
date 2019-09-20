@@ -247,9 +247,58 @@ public class rabbitmqConfiguration {
     }
 
 
+    /**
+     * 创建死信队列，这里使用topicExchange交换机
+     * @return
+     */
+    @Bean
+    public Queue deadQueue(){
+        return new Queue("dead.queue");
+    }
+    @Bean
+    public TopicExchange deadTopicExchange(){
+        return new TopicExchange("deadExchange");
+    }
+    @Bean
+    public Binding bindDeadTopicExchange(){
+        return BindingBuilder.bind(deadQueue()).to(deadTopicExchange()).with("dead.key.#");
+    }
+
+    /**
+     * 把一个direct交换机的队列绑定死信队列，那么这个队列的消息出现死信现象就会把消息发送到死信队列【dead.queue】中
+     * 把normalQueue队列设置参数绑定死信队列
+     *      x-dead-letter-exchange：死信交换机
+     *      x-dead-letter-routing-key：死信路由键
+     *      x-message-ttl：消息存活时间(这个设不设都可以)，单位毫秒
+     * @return
+     */
+    @Bean
+    public Queue normalQueue(){
+        Map<String,Object> dead_args = new HashMap<>();
+        dead_args.put("x-dead-letter-exchange","deadExchange"); //死信交换机，与上面死信交换机名称匹配
+        dead_args.put("x-dead-letter-routing-key","dead.key.test"); //死信路由键，与上面死信交换机绑定时的路由键匹配
+        dead_args.put("x-message-ttl",60000);  //消息存活时间，单位毫秒
+        //第五个参数是绑定死信的一些参数，map类型
+        return new Queue("normalQueue",true,false,false,dead_args);
+    }
+    @Bean
+    public DirectExchange normalExchange(){
+        return new DirectExchange("normalExchange");
+    }
+    @Bean
+    public Binding bindNormalExchange(){
+        return BindingBuilder.bind(normalQueue()).to(normalExchange()).with("normalkey");
+    }
+
+
     //注入CachingConnectionFactory连接工厂，可以设置或者获取yml配置文件中的配置
     @Autowired
     private CachingConnectionFactory factory;
+
+    /**
+     * 设置消息发布者confirm机制
+     * @return
+     */
     @Bean
     public RabbitTemplate rabbitTemplate(){
         RabbitTemplate rabbit = new RabbitTemplate(factory); //实例化rabbitTemplate模版连接
@@ -267,10 +316,10 @@ public class rabbitmqConfiguration {
 //                log.info("【到达Exchange成功】：ack({})",ack);
 //                log.info("【到达Exchange成功】：cause({})",cause);
             }else {
-//                log.info("【到达Exchange失败】：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
-                log.info("【到达Exchange失败】：correlationData({})",correlationData);
-                log.info("【到达Exchange失败】：ack({})",ack);
-                log.info("【到达Exchange失败】：cause({})",cause);
+                log.info("【到达Exchange失败】：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
+//                log.info("【到达Exchange失败】：correlationData({})",correlationData);
+//                log.info("【到达Exchange失败】：ack({})",ack);
+//                log.info("【到达Exchange失败】：cause({})",cause);
             }
         });
 
@@ -285,13 +334,13 @@ public class rabbitmqConfiguration {
          */
         rabbit.setMandatory(true);  //一定要设置setMandatory为True，不然失败时无法回调
         rabbit.setReturnCallback((message, replyCode, replyText, exchange, routingKey) -> {
-//            log.info("【消息丢失】:exchange({}),route({}),replyCode({}),replyText({}),message:{}",
-//                    exchange,routingKey,replyCode,replyText,message);
-            log.info("【消息丢失】:message({})",message);
-            log.info("【消息丢失】:replyCode({})",replyCode);
-            log.info("【消息丢失】:replyText({})",replyText);
-            log.info("【消息丢失】:exchange({})",exchange);
-            log.info("【消息丢失】:routingKey({})",routingKey);
+            log.info("【消息丢失】:exchange({}),route({}),replyCode({}),replyText({}),message:{}",
+                    exchange,routingKey,replyCode,replyText,message);
+//            log.info("【消息丢失】:message({})",message);
+//            log.info("【消息丢失】:replyCode({})",replyCode);
+//            log.info("【消息丢失】:replyText({})",replyText);
+//            log.info("【消息丢失】:exchange({})",exchange);
+//            log.info("【消息丢失】:routingKey({})",routingKey);
         });
 
         return rabbit;

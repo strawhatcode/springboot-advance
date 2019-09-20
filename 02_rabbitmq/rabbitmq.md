@@ -1415,5 +1415,248 @@ public class MqSender {
        >
        >**注意1：**如果消息处理失败时，不自己设置重试的次数，则该消息会无限循环重新入队，且回到队列头部，因此该消息后面的消息都会卡在那里无法被消费者接收到。
 
-       
+
+##### - **死信队列**
+
+>解释：
+>
+>死信队列（Dead Letter Exchange）本身也是一种普通的队列，不过它可以在一些情况中把消息发送到其他队列中，如果一个队列设置成死信队列，那么当一个消息出现死信现象时就把该消息发送到另外一个队列中。在下列情况中消息会变成死信：
+>
+>- 消息在队列中的时间超时了，如果给消息设置**TTL(存活时间)**，那么消息在队列中超过存活时间就变成死信
+>- 消息被拒绝，**basicNack()**或者**basicReject()**都是拒绝消息的方法，**requeue**要设置成**false**才有效
+>- 消息超出队列的长度
+
+1. 创建死信队列
+
+   - 继续在**rabbitmqConfiguration**配置类中创建
+
+     ```java
+         /**
+          * 创建死信队列，这里使用topicExchange交换机
+          * @return
+          */
+         @Bean
+         public Queue deadQueue(){
+             return new Queue("dead.queue");
+         }
+         @Bean
+         public TopicExchange deadTopicExchange(){
+             return new TopicExchange("deadExchange");
+         }
+         @Bean
+         public Binding bindDeadTopicExchange(){
+             return BindingBuilder.bind(deadQueue()).to(deadTopicExchange()).with("dead.key.#");
+         }
+     
+         /**
+          * 把一个direct交换机的队列绑定死信队列，那么这个队列的消息出现死信现象就会把消息发送到死信队列【dead.queue】中
+          * 把normalQueue队列设置参数绑定死信队列
+          *      x-dead-letter-exchange：死信交换机
+          *      x-dead-letter-routing-key：死信路由键
+          *      x-message-ttl：消息存活时间(这个设不设都可以)，单位毫秒
+          * @return
+          */
+         @Bean
+         public Queue normalQueue(){
+             Map<String,Object> dead_args = new HashMap<>();
+             dead_args.put("x-dead-letter-exchange","deadExchange"); //死信交换机，与上面死信交换机名称匹配
+             dead_args.put("x-dead-letter-routing-key","dead.key.test"); //死信路由键，与上面死信交换机绑定时的路由键匹配
+             dead_args.put("x-message-ttl",60000);  //消息存活时间，单位毫秒
+             //第五个参数是绑定死信的一些参数，map类型
+             return new Queue("normalQueue",true,false,false,dead_args);
+         }
+         @Bean
+         public DirectExchange normalExchange(){
+             return new DirectExchange("normalExchange");
+         }
+         @Bean
+         public Binding bindNormalExchange(){
+             return BindingBuilder.bind(normalQueue()).to(normalExchange()).with("normalkey");
+         }
+     ```
+
+     创建完后在rabbitmq管理页面可以看到这两个队列的一些信息：
+
+     ![](images/29.jpg)
+
+     >死信队列**dead.queue**就是一个**普通**的**topic交换机**的队列
+     >
+     >普通队列**normalQueue**是个绑定了死信队列的**direct交换机**的队列
+     >
+     >Features中：
+     >
+     >​		D：duration，队列持久化
+     >
+     >​		TTL：time to live，消息存活时间
+     >
+     >​		DLX：dead-letter-exchange，死信交换机
+     >
+     >​		DLK：dead-letter-routing-key，死信路由键
+
+     
+
+   - 消息发布者类我还是用上面的**MySender**类
+
+     ```java
+     package com.hat.rabbitmq.mqsender;
+     
+     import org.slf4j.Logger;
+     import org.slf4j.LoggerFactory;
+     import org.springframework.amqp.rabbit.connection.CorrelationData;
+     import org.springframework.amqp.rabbit.core.RabbitTemplate;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.stereotype.Component;
+     
+     import java.util.UUID;
+     
+     @Component
+     public class MqSender {
+         private final static Logger log = LoggerFactory.getLogger(MqSender.class);
+     
+         @Autowired
+         RabbitTemplate rabbitTemplate; //这里使用RabbitTemplate来发送消息
+     
+         public void Sender(String exchange,String routingkey,String msg){
+             //实例化一个CorrelationData对象充当消息的唯一id
+             CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
+             //发布消息
+             rabbitTemplate.convertAndSend(exchange,routingkey,msg,correlationData);
+             log.info("【Sender】发送的消息内容[{}]到[{}]交换机，路由键为[{}]，消息id为[{}]",
+                     msg,exchange,routingkey,correlationData);
+         }
+     
+     }
+     ```
+
+   - 创建normalQueue队列消费者**MqReceiverNormalExchange**
+
+     ```java
+     package com.hat.rabbitmq.mqreceiver;
+     
+     import com.rabbitmq.client.Channel;
+     import org.slf4j.Logger;
+     import org.slf4j.LoggerFactory;
+     import org.springframework.amqp.core.Message;
+     import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+     import org.springframework.amqp.rabbit.annotation.RabbitListener;
+     import org.springframework.stereotype.Component;
+     
+     import java.io.IOException;
+     
+     @Component
+     public class MqReceiverNormalExchange {
+         private final static Logger log = LoggerFactory.getLogger(MqReceiverNormalExchange.class);
+         int count = 0;
+         @RabbitListener(queues = "normalQueue")
+         @RabbitHandler
+         public void NormalReceiver(Message msg, Channel channel) throws IOException {
+             String message = new String(msg.getBody());
+             //模拟出现异常重试且重试失败，重试失败后才把消息发送到死信队列
+             if ("这是消息3".equals(message) || "这是消息8".equals(message)){
+                 count += 1;
+                 if (count <= 3){
+                     log.info("消息[{}]重试第[{}]次",message,count);
+                     channel.basicNack(msg.getMessageProperties().getDeliveryTag(),false,true);
+                 }else{
+                     log.info("消息[{}]重试次数已用完，丢弃消息",message);
+                     channel.basicNack(msg.getMessageProperties().getDeliveryTag(),false,false);
+                 }
+             }else {
+                 log.info("【NormalReceiver】收到消息****[{}]",message);
+                 channel.basicAck(msg.getMessageProperties().getDeliveryTag(),false);
+                 count = 0;
+             }
+         }
+     }
+     
+     ```
+
+   - 创建deadQueue死信队列消息消费者
+
+     ```java
+     package com.hat.rabbitmq.mqreceiver;
+     
+     import com.rabbitmq.client.Channel;
+     import org.slf4j.Logger;
+     import org.slf4j.LoggerFactory;
+     import org.springframework.amqp.core.Message;
+     import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+     import org.springframework.amqp.rabbit.annotation.RabbitListener;
+     import org.springframework.stereotype.Component;
+     
+     import java.io.IOException;
+     
+     @Component
+     public class MqReceiverDeadExchange {
+         private final static Logger log = LoggerFactory.getLogger(MqReceiverDeadExchange.class);
+     
+         @RabbitListener(queues = "dead.queue")
+         @RabbitHandler
+         public void DeadLetterReceiver(Message msg, Channel channel) throws IOException {
+             try {
+                 //消费normalQueue发送过来的消息
+                 log.info("【DeadLetterReceiver】收到死信消息---[{}]",new String(msg.getBody()));
+                 channel.basicAck(msg.getMessageProperties().getDeliveryTag(),false);
+             } catch (Exception e) {
+                 e.printStackTrace();
+                 channel.basicNack(msg.getMessageProperties().getDeliveryTag(),false,false);
+             }
+         }
+     }
+     
+     ```
+
+   - 编写测试接口
+
+     ```java
+     package com.hat.rabbitmq.controller;
+     
+     import com.hat.rabbitmq.mqsender.MqSender;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.web.bind.annotation.GetMapping;
+     import org.springframework.web.bind.annotation.RestController;
+     
+     @RestController
+     public class SenderController {
+         @Autowired
+         MqSender sender;
+         //测试一次请求发送10条消息到指定交换机的指定队列
+         @GetMapping("/send")
+         public String send(String exchange,
+                            String routingkey,
+                            String msg){
+             for(int i=1; i<10;i++) {
+                 sender.Sender(exchange, routingkey, msg+i);
+             }
+             return "发送消息";
+         }
+     }
+     
+     ```
+
+   - 测试结果
+
+     ```java
+     /**请求语句，
+      *	参数：
+      *		exchange：normalExchange，
+      *		routingkey：normalkey，
+      *		msg：这是消息
+      */
+     localhost:8080/send?exchange=normalExchange&routingkey=normalkey&msg=这是消息
+     ```
+
+     ![](images/27.jpg)
+
+     ![](images/28.jpg)
+
+     >我给**normalQueue**发送了**9**条消息，可以看到**NormalReceiver**接收到了其中**7**条，其中没接收的两条**【消息3】**和**【消息8】**是我在重试3次后丢弃的，丢弃的这两条消息被死信队列**dead.queue**的消费者**DeadLetterReceiver**接收到并处理掉。
+
+
+
+##### - **rabbitmq属性配置**
+
+```
+
+```
 
