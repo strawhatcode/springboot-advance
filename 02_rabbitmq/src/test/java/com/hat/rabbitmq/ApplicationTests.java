@@ -107,10 +107,11 @@ public class ApplicationTests {
 
     @Test
     public void testsender(){
-//        sender.Sender("directExchange","directA","[ 1、directExchange、directA的消息]");
+        sender.Sender("directExchange","directA","[ 1、directExchange、directA的消息]");
+        sender.Sender("directExchange","directA","[ 2、directExchange、directA的消息]");
 //        sender.Sender("exchange.no","keyno","[ 1、exchange.no、keyno的消息]");
-        sender.Sender("directExchange","keyno","[ 2、directExchange、keyno的消息]");
-
+//        sender.Sender("directExchange","keyno","[ 2、directExchange、keyno的消息]");
+//        sender.Sender("topicExchange","topic.aa.bb","这是消息");
     }
 
 }

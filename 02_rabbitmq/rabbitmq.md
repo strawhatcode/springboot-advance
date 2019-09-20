@@ -1109,13 +1109,17 @@ public class MqReceiverHeadersExchange {
 
 >消息发布者在发布消息时，有可能会发送失败，原因可能**交换机不存在**或者**匹配的路由键不存在**，也可能是**网络问题**，在传输过程中出现问题，而正常情况下，我们是不知道消息是否成功发送到队列中。
 >
->因此RabbitMQ提供了两种消息发布者确认机制，一种是使用**事务机制**，一种是**Confirm**发布者确认机制
+>因此RabbitMQ提供了两种消息发布者确认机制，一种是使用**事务机制**，一种是**Confirm**发布者确认机制,如果使用**事务机制**，则会大大降低系统的吞吐量
 >
 >**Confirm**确认机制：
 >
 >​		**ConfirmCallback**用来判断消息是否到达**Exchange**，不管成功还是失败，**broker(rabbitmq服务端)**都会返回一个**ack**，这个**ack**是一个**boolean**值，当**ack**为**True**时，表明消息**已经到达Exchange**，当**ack**为**False**时则消息**没有到达Exchange**，原因可能是**Exchange**，也可能是其他原因导致的消息无法找到**Exchange**，然后我们可以使用**ConfirmCallback**来接收**ack**且根据**ack**来做出相应的操作。
 >
 >​		**ReturnCallback**用来判断消息是否根据路由键匹配到队列，如果**能**路由到队列，则**不触发回调**，如果**不能**路由到队列，则**会触发回调**，然后可以在回调方法中作出相应操作
+
+消息发布的模型图：
+
+![](images/21.jpg)
 
 **Confirm**的实现
 
@@ -1168,11 +1172,83 @@ public class MqReceiverHeadersExchange {
     }
 ```
 
+- 创建一个新的**Sender**
 
+```java
+package com.hat.rabbitmq.mqsender;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+import java.util.UUID;
 
+@Component
+public class MqSender {
+    private final static Logger log = LoggerFactory.getLogger(MqSender.class);
 
+    @Autowired
+    RabbitTemplate rabbitTemplate; //这里使用RabbitTemplate来发送消息
+
+    public void Sender(String exchange,String routingkey,String msg){
+        //实例化一个CorrelationData对象充当消息的唯一id
+        CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
+        //发布消息
+        rabbitTemplate.convertAndSend(exchange,routingkey,msg,correlationData);
+        log.info("【Sender】发送的消息内容[{}]到[{}]交换机，路由键为[{}]，消息id为[{}]",
+                msg,exchange,routingkey,correlationData);
+    }
+
+}
+
+```
+
+- 测试
+
+1. 当我发送到交换机为**directExchange**，路由键为**directA**绑定的队列时，在前面我已经创建过**directExchange**交换机和**directA**路由键，因此该测试触发了**ConfirmCallback**回调，且**ack**为**True**。
+
+   ```java
+   sender.Sender("directExchange","directA","[ 1、directExchange、directA的消息]");
+   ```
+
+   结果：
+
+   ![](images/18.jpg)
+
+   
+
+2.  当我发送到交换机为**exchange.no**，路由键为**keyno**绑定的队列时，该交换机与路由键我都没有创建，
+
+   因此该测试触发了**ConfirmCallback**回调，且**ack**为**False**。
+
+   ```java
+   sender.Sender("exchange.no","keyno","[ 1、exchange.no、keyno的消息]");
+   ```
+
+   结果：
+
+   ![](images/19.jpg)
+
+   > 在上面的结果图中，可以看到**ack**为**false**，而且当找不到名为**exchange.no**交换机时，**Channel通道**会断开，并且会输出断开的原因，而且我么也可以在**ConfirmCallback**回调方法中接收到原因
+
+   
+
+3.  当我发送到的交换机为**directExchange(存在)**，路由键为**keyno(不存在)**绑定的队列时。
+
+   会触发**ConfirmCallback**回调，且**ack**为**True**，且同时会触发**ReturnCallback**回调
+
+   ```java
+   sender.Sender("directExchange","keyno","[ 2、directExchange、keyno的消息]");
+   ```
+
+   结果：
+
+   ![](images/20.jpg)
+
+   > 在上面的结果中，可以看到**ack**为**true**，因为**directExchange**是存在的，消息可以到达**directExchange**交换机，然而**keyno**路由键并不存在，因此会触发**ReturnCallback**回调，输出一些的信息。
 
 ##### - **manual acknowledgements**（手动确认）
 
@@ -1182,5 +1258,162 @@ public class MqReceiverHeadersExchange {
 >
 > 因此，可以是用**消息手动确认模式（ack）**模式来处理消息是否被成功消费。当使用**ack**模式时，消费者把消息处理完成后会返回一个**标志**给**RabbitMQ**，当**RabbitMQ**收到这个**标志**后才会认定该消息被成功消费，然后再把该消息从队列中删除，从而避免了消息还没有被成功消费就丢失。
 
-- 实现代码
-  - 在
+实现代码
+
+- 在application.yml配置文件中添加配置开启消息手动确认模式
+
+  ```yaml
+  listener:
+        simple:
+          acknowledge-mode: manual
+  ```
+
+  > **acknowledge-mode**有**3**个参数
+  >
+  > ​		**manual**：消息手动确认模式，**channel**提供了**basicAck**、**basicNack**、**basicReject**来进行手动确认
+  >
+  > ​		**none**：自动确认，即发送到消费者就确认，不管消费者是否处理完成
+  >
+  > ​		**auto**：根据消费者是否正常返回或者抛出异常来确认
+
+  
+
+  1. 当只开启了消息确认模式而没有进行手动确认，那么消息就会一直存放在**queue**中。
+
+     
+
+     ![](images/22.jpg)
+
+     > 当我没写手动确认代码时，发送了8个消息到队列中,可以看出，如果没写代码手动确认，则消息会一直存在队列中。图中显示有5个消息没有确认，原因是我没有关闭consumer，消息就一直处于未确认状态。
+
+     当我关闭consumer时，消息全部回到队列中，变成ready状态
+
+     ![](images/23.jpg)
+
+     
+
+  2. 编写代码实现手动确认
+
+     - 成功确认：
+
+       **channel.basicAck(long deliveryTag,boolean multiple)：**
+
+       参数：
+
+       | deliveryTag | 消息的标识，第一个为1，然后依次加1，手动确认时该值作为返回值返回给broker，然后broker根据该标识把消息从队列中删除。 |
+       | ----------- | ------------------------------------------------------------ |
+       | multiple    | True：把当前标识(deliveryTag)之前未确认的消息全部确认（如：当前deliveryTag为7时，            前面还有4、5、6，则把4、5、6、7标识的消息都确认）                                                         False：把当前标识(deliveryTag)的消息进行确认（如当前为7，则只确认7，如果还有4、5、6,并不会对他们进行确认） |
+
+     - 失败确认：
+
+       **channel.basicNack(long deliveryTag,boolean multiple,boolean requeue)：**
+
+       参数：
+
+       | deliveryTag | 消息的标识，第一个为1，然后依次加1，手动确认时该值作为返回值返回给broker，然后broker根据该标识把消息从队列中删除。 |
+       | ----------- | ------------------------------------------------------------ |
+       | multiple    | True：把当前标识(deliveryTag)之前未确认的消息全部确认（如：当前deliveryTag为7时，            前面还有4、5、6，则把4、5、6、7标识的消息都确认）。                                                         False：把当前标识(deliveryTag)的消息进行确认（如当前为7，则只确认7，如果还有4、5、6,并不会对他们进行确认） |
+       | requeue     | True：重新发送该消息（注意：如果设置为True时不做次数判断则会无限循环下去）。False：丢弃消息 |
+
+     - 拒绝确认：
+
+       **channel.basicReject(long deliveryTag,boolean requeue)**：与**basicNack**用法一样，就少了**multiple**参数
+
+       参数：
+
+       | deliveryTag | 消息的标识，第一个为1，然后依次加1，手动确认时该值作为返回值返回给broker，然后broker根据该标识把消息从队列中删除。 |
+       | ----------- | ------------------------------------------------------------ |
+       | requeue     | True：重新发送该消息（注意：如果设置为True时不做次数判断则会无限循环下去）。False：丢弃消息 |
+
+     
+
+     代码实现：
+
+     - 修改**消息消费者类**，这里我用**MqReceiverDirectExchange**消费者类，实现消息成功确认
+
+       ```java
+       //这个方法增加Channel参数,这个参数可以实现手动确认
+       @RabbitListener(queues = "directQueueA")
+       @RabbitHandler  
+       public void ReceiverA(Message msg, Channel channel) throws IOException { 
+           String getQueueName = msg.getMessageProperties().getConsumerQueue();
+           String massage = new String(msg.getBody());
+       	//手动成功确认，把deliveryTag作为参数返回给broker
+           channel.basicAck(msg.getMessageProperties().getDeliveryTag(), false);
+           log.info("【ReceiverA】接收到来自队列[ " + getQueueName + " ]的信息---->[ " + massage + " ]");
+       }
+       ```
+
+       > 当设置了basicAck()后，消费者把消息处理完后就把deliveryTag返回给broker，broker再根据deliveryTag删除队列中的消息。这样就实现了消息手动确认。
+
+       
+
+     - 再修改**MqReceiverDirectExchange**消费者类，实现消息失败确认。
+
+       ```java
+       package com.hat.rabbitmq.mqreceiver;
+       
+       import com.rabbitmq.client.Channel;
+       import org.slf4j.Logger;
+       import org.slf4j.LoggerFactory;
+       import org.springframework.amqp.core.Message;
+       import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+       import org.springframework.amqp.rabbit.annotation.RabbitListener;
+       
+       import org.springframework.stereotype.Component;
+       
+       import java.io.IOException;
+       
+       
+       @Component
+       public class MqReceiverDirectExchange {
+           private final static Logger log = LoggerFactory.getLogger(MqReceiverDirectExchange.class);
+           int count = 0; //记录重试的次数
+           @RabbitListener(queues = "directQueueA")
+           @RabbitHandler
+           public void ReceiverA(Message msg, Channel channel) throws IOException {
+               String getQueueName = msg.getMessageProperties().getConsumerQueue();
+               String massage = new String(msg.getBody());
+               //模拟如果出现异常或者出现其他问题时导致消息处理失败时的处理
+               if ("这是消息5".equals(massage) || "这是消息7".equals(massage) ){
+                   log.info("*************************************************");
+                   count += 1;
+                   if(count < 6) {
+                       log.info("【重试第[{}]次】",count);
+                       channel.basicNack(msg.getMessageProperties().getDeliveryTag(), false, true);
+                   }else {
+                       log.info("【重试次数已超过，丢弃消息[{}]】",massage);
+                       channel.basicNack(msg.getMessageProperties().getDeliveryTag(), false, false);
+                       count = 0;
+                   }
+               }else {
+                   /**
+                    * basicAck()：消息成功确认，参数与basicNack()一样，就少了个requeue参数
+                    * 处理完消息后就把deliveryTag返回给broker，然后broker会删除对应消息
+                    */
+                   channel.basicAck(msg.getMessageProperties().getDeliveryTag(), false);
+                   log.info("【ReceiverA】接收到来自队列[ " + getQueueName + " ]的信息---->[ " + massage + " ]");
+               }
+           }
+       }
+       
+       ```
+
+       
+
+       往队列发送10个消息测试，结果如下图：
+
+       ![](images/24.jpg)
+
+       ![](images/25.jpg)
+
+       ![](images/26.jpg)
+
+       
+
+       >假设**第5条**消息与**第7条**消息**发生异常**或者**其他问题**，可以看出消费者在处理第**5**条时，会执行**channel.basicNack(msg.getMessageProperties().getDeliveryTag(), false, true)**方法来处理消息失败确认，因为我**第3个参数**设置为**true**，因此会把消息重新入队，然后再重新发送消息，当发送到第6次时，我把**channel.basicNack(msg.getMessageProperties().getDeliveryTag(), false, false)**的**第3个参数**设置为**false**，说明要**丢弃**这个消息。因此**【ReceiverA】**处理完第5跟第7条消息。
+       >
+       >**注意1：**如果消息处理失败时，不自己设置重试的次数，则该消息会无限循环重新入队，且回到队列头部，因此该消息后面的消息都会卡在那里无法被消费者接收到。
+
+       
+

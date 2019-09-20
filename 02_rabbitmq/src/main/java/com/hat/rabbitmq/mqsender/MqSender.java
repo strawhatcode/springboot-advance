@@ -21,12 +21,12 @@ public class MqSender {
         CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
         //发布消息
         rabbitTemplate.convertAndSend(exchange,routingkey,msg,correlationData);
-//        log.info("【Sender】发送的消息内容[{}]到[{}]交换机，路由键为[{}]，消息id为[{}]",
-//                msg,exchange,routingkey,correlationData);
-        log.info("【Sender】发送的消息内容[{}]",msg);
-        log.info("【Sender】发送的交换机[{}]，",exchange);
-        log.info("【Sender】发送的路由键[{}]，",routingkey);
-        log.info("【Sender】发送的消息id为[{}]",correlationData);
+        log.info("【Sender】发送的消息内容[{}]到[{}]交换机，路由键为[{}]，消息id为[{}]",
+                msg,exchange,routingkey,correlationData);
+//        log.info("【Sender】发送的消息内容[{}]",msg);
+//        log.info("【Sender】发送的交换机[{}]，",exchange);
+//        log.info("【Sender】发送的路由键[{}]，",routingkey);
+//        log.info("【Sender】发送的消息id为[{}]",correlationData);
     }
 
 }
