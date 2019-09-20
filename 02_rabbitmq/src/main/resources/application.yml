@@ -1,27 +1,86 @@
 spring:
+  #连接属性
   rabbitmq:
-    host: 192.168.229.130    #rabbitmq服务器的地址
-    username: guest          #登录帐号，默认是guest
-    password: guest          #登录密码，默认是guest
-    port: 5672               #rabbitmq服务器占用的端口号，默认5672
-    publisher-confirms: true #发布者消息确认机制，只能判断是否到达交换机
-    publisher-returns: true  #消息路由到队列的过程中，路由键不存在则触发回调
+    host: 192.168.229.130       #rabbitmq服务器的地址，默认localhost
+    username: guest             #登录帐号，默认是guest
+    password: guest             #登录密码，默认是guest
+    port: 5672                  #rabbitmq服务器占用的端口号，默认5672
+    virtual-host:               #要连接的vhost，默认为/
+    addresses:                  #客户端连接的地址，多个用逗号分隔
+    connection-timeout:         #连接超时时间，设置为0时永远等待
+    requested-heartbeat:        #请求心跳超时时间，不指定单位则默认是秒
+    dynamic: true               #创建一个AmqpAdmin的Bean,默认true
+    publisher-confirms: true    #开启publisher-confirms机制，只能判断是否到达交换机，默认false
+    publisher-returns: true     #开启publisher-returns机制，消息路由到队列的过程中，路由键不存在则触发回调，默认false
+    #publisher模板属性
     template:
       retry:
-        enabled: true   #开启消息发送失败重试
-        initial-interval: 1000   #重试的时间间隔
-        max-attempts: 3   #最大重试次数
+        enabled: true           #开启rabbitTemplate重试，默认false
+        max-attempts: 3         #最大重试次数，默认3
+        initial-interval: 1000  #两次重试之间的时间间隔，默认1000ms
+        multiplier: 1.0         #上次重试时间间隔的乘数，默认1.0
+        max-interval: 10000     #两次重试之间最大的时间间隔，默认10000ms
       #这个属性在这里配置不生效，原因未知，需要在实例化RabbitTemplate后设置这个属性为true【rabbit.setMandatory(true);】
-#     mandatory: true        #如果消息发送到消费者失败则重新进队列，false时则直接丢弃消息
-
+      mandatory: true           #开启强制消息,默认false，与publisher-returns配合使用，如果消息发送到队列失败则返回给发布者，false时则直接丢弃消息
+      receive-timeout:          #receive()方法的超时时间
+      reply-timeout:            #sendAndReceive()方法的超时时间
+      exchange:                 #发送消息时使用的默认交换机名称
+      routing-key:              #发送消息时使用的默认路由键
+      default-receive-queue:    #没有明确指定队列时使用的默认队列名称
+    #consumer属性
     listener:
-      simple:
-        acknowledge-mode:    #消息手动确认
+      type: direct              #使用哪种监听者模式， simple和direct两种，前者是一个信道多个消费者，后者是一个信道一个消费者,默认simple
+      simple:                   #simple模式属性配置
+        retry:
+          enabled: true         #开启重试，默认false
+          max-attempts: 3       #最大重试次数，默认3
+          initial-interval: 1000 #两次重试之间的时间间隔，默认1000ms
+          multiplier: 1.0       #上次重试时间间隔的乘数，默认1.0
+          max-interval: 10000   #两次重试之间最大的时间间隔，默认10000ms
+          stateless: true       #重试是有状态还是无状态的，默认true
+        concurrency:            #消费者最小线程数
+        max-concurrency:        #消费者最大线程数
+        auto-startup: true      #是否容器启动时自动启动消费者，默认true
+        # manual：消息手动确认，channel提供了basicAck、basicNack、basicReject来进行手动确认
+        # none：自动确认，即发送到消费者就确认，不管消费者是否处理完成
+        # auto：根据消费者是否正常返回或者抛出异常来确认
+        acknowledge-mode: manual #是否开启手动确认模式，默认none(自动模式)，还有auto模式
+        prefetch: 3             #消费者每次可以从队列获取多少条消息，如果有消息未被确认，则下个消息无法被接收到
+        missing-queues-fatal: true  #如果队列的声明在broker不可用是否失败，或者如果在运行时删除了1个或多个队列是否关闭容器，默认true
+        default-requeue-rejected: false #失败确认时是否重新入队，true时要把写代码把消息放入死信队列，否则会造成无限循环入队，false时丢弃消息
+        idle-event-interval:    #多久发布一次空闲容器事件
+        transaction-size:       #acknowledge-mode为auto时，事务处理的消费者个数，应小于等于prefetch，否则prefetch的大小会增加到这里设置的值
+      direct:                   #direct模式属性配置，属性与simple几乎一样
         retry:
           enabled: true
+          max-attempts: 5
+          initial-interval: 1000
+          multiplier: 1.0
+          max-interval: 10000
+          stateless: true
+        auto-startup: true
+        acknowledge-mode: manual
+        prefetch: 3
+        missing-queues-fatal: true
         default-requeue-rejected: false
-
-
-
-
-
+        idle-event-interval:
+        consumers-per-queue: 1     #每个队列的消费者数
+    #缓存属性配置
+    cache:
+      connection:
+        mode: channel         #缓存使用那种连接方式，默认channel，还有个connection
+        size:                 #缓存的连接个数，仅在connection模式下才能用
+      channel:
+        checkout-timeout:     #如果缓存大小已用完，则创建新的channel等待的时间，如果0则直接创建新channel
+        size:                 #缓存保留channel的个数，如果checkout-timeout大于0，则表示每个连接最大的channel个数
+    ssl:
+      enabled: false          #是否启用ssl支持， 默认false
+      algorithm:              #要使用的ssl算法，默认由rabbitmq客户端配置
+      key-store:              #ssl证书的路径
+      key-store-password:     #访问ssl秘钥的密码
+      key-store-type: PKCS12  #秘钥类型，默认PKCS12
+      trust-store:            #持有ssl证书的信任存储
+      trust-store-password:   #信任存储的密码
+      trust-store-type: JKS   #信任存储的类型， 默认JKS
+      validate-server-certificate: true   #是否启用服务端证书认证，默认true
+      verify-hostname: true   #是否启用主机名称认证
