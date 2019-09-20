@@ -1,4 +1,5 @@
 spring:
+
   #连接属性
   rabbitmq:
     host: 192.168.229.130       #rabbitmq服务器的地址，默认localhost
@@ -12,6 +13,7 @@ spring:
     dynamic: true               #创建一个AmqpAdmin的Bean,默认true
     publisher-confirms: true    #开启publisher-confirms机制，只能判断是否到达交换机，默认false
     publisher-returns: true     #开启publisher-returns机制，消息路由到队列的过程中，路由键不存在则触发回调，默认false
+
     #publisher模板属性
     template:
       retry:
@@ -27,9 +29,11 @@ spring:
       exchange:                 #发送消息时使用的默认交换机名称
       routing-key:              #发送消息时使用的默认路由键
       default-receive-queue:    #没有明确指定队列时使用的默认队列名称
+
     #consumer属性
     listener:
-      type: direct              #使用哪种监听者模式， simple和direct两种，前者是一个信道多个消费者，后者是一个信道一个消费者,默认simple
+      type: direct              #使用哪种监听者模式， simple和direct两种，前者是一个信道多个消费者且一个消费者同一个线程，后者是一个信道一个消费者且一个消费者可能不同线程,默认simple
+
       simple:                   #simple模式属性配置
         retry:
           enabled: true         #开启重试，默认false
@@ -50,6 +54,7 @@ spring:
         default-requeue-rejected: false #失败确认时是否重新入队，true时要把写代码把消息放入死信队列，否则会造成无限循环入队，false时丢弃消息
         idle-event-interval:    #多久发布一次空闲容器事件
         transaction-size:       #acknowledge-mode为auto时，事务处理的消费者个数，应小于等于prefetch，否则prefetch的大小会增加到这里设置的值
+
       direct:                   #direct模式属性配置，属性与simple几乎一样
         retry:
           enabled: true
@@ -65,6 +70,7 @@ spring:
         default-requeue-rejected: false
         idle-event-interval:
         consumers-per-queue: 1     #每个队列的消费者数
+
     #缓存属性配置
     cache:
       connection:
@@ -73,6 +79,8 @@ spring:
       channel:
         checkout-timeout:     #如果缓存大小已用完，则创建新的channel等待的时间，如果0则直接创建新channel
         size:                 #缓存保留channel的个数，如果checkout-timeout大于0，则表示每个连接最大的channel个数
+
+    #ssl属性配置
     ssl:
       enabled: false          #是否启用ssl支持， 默认false
       algorithm:              #要使用的ssl算法，默认由rabbitmq客户端配置
