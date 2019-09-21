@@ -19,8 +19,8 @@ public class MqReceiverTopicExchange {
     @RabbitListener(queues = "topicQueueA")
     @RabbitHandler
     public void ReceiverA(Message msg, Channel channel) throws IOException {
-        channel.basicAck(msg.getMessageProperties().getDeliveryTag(),true);
-        log.info("[ReceiverA]接收到消息-----["+new String(msg.getBody())+"]");
+        channel.basicAck(msg.getMessageProperties().getDeliveryTag(),false);
+        log.info("thread【"+Thread.currentThread().getId()+"】[ReceiverA]接收到消息-----["+new String(msg.getBody())+"]");
     }
 
     @RabbitListener(queues = "topicQueueB")

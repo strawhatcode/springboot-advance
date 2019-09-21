@@ -23,7 +23,7 @@ public class MqReceiverDirectExchange {
         String massage = new String(msg.getBody());
 //        log.info(msg.getMessageProperties().toString());
         //模拟如果出现异常或者出现其他问题时导致消息处理失败时的处理
-        if ("这是消息5".equals(massage) || "这是消息7".equals(massage) ){
+        if ("".equals(massage) || "".equals(massage) ){
             log.info("*************************************************");
             count += 1;
             if(count < 6) {
@@ -52,8 +52,8 @@ public class MqReceiverDirectExchange {
              * basicAck()：消息成功确认，参数与basicNack()一样，就少了个requeue参数
              * 处理完消息后就把deliveryTag返回给broker，然后broker会删除对应消息
              */
-            channel.basicAck(msg.getMessageProperties().getDeliveryTag(), true);
-            log.info("【ReceiverA】接收到来自队列[ " + getQueueName + " ]的信息---->[ " + massage + " ]");
+            channel.basicAck(msg.getMessageProperties().getDeliveryTag(), false);
+            log.info("thread["+Thread.currentThread().getId()+"]【ReceiverA】接收到来自队列[ " + getQueueName + " ]的信息---->[ " + massage + " ]");
         }
 //        try {
 //            String getQueueName = msg.getMessageProperties().getConsumerQueue();

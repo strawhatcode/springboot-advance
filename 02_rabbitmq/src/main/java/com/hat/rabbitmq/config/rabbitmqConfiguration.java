@@ -311,7 +311,7 @@ public class rabbitmqConfiguration {
          */
         rabbit.setConfirmCallback((correlationData, ack, cause) -> {
             if (ack){
-//                log.info("【到达Exchange成功】：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
+                log.info("【到达Exchange成功】：correlationData({}),ack({}),cause({})",correlationData,ack,cause);
 //                log.info("【到达Exchange成功】：correlationData({})",correlationData);
 //                log.info("【到达Exchange成功】：ack({})",ack);
 //                log.info("【到达Exchange成功】：cause({})",cause);
