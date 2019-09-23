@@ -1,5 +1,7 @@
 package com.hat.rabbitmq;
 
+import com.hat.rabbitmq.another_way.receiver.Receiver;
+import com.hat.rabbitmq.another_way.sender.Sender;
 import com.hat.rabbitmq.mqsender.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -7,6 +9,9 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -112,6 +117,17 @@ public class ApplicationTests {
 //        sender.Sender("exchange.no","keyno","[ 1、exchange.no、keyno的消息]");
 //        sender.Sender("directExchange","keyno","[ 2、directExchange、keyno的消息]");
 //        sender.Sender("topicExchange","topic.aa.bb","这是消息");
+    }
+
+
+    @Test
+    public void anotherDirectSender() throws IOException, TimeoutException {
+//        Sender sender = new Sender();
+//        for (int i=0;i<=10;i++) {
+//            sender.directSender("another发送的第["+i+"]条消息");
+//        }
+        Receiver receiver = new Receiver();
+        receiver.directReceiver();
     }
 
 }

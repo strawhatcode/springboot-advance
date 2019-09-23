@@ -201,7 +201,7 @@
 
 ## 三、使用RabbitMQ
 
-### 1.使用注解方式
+###  1.使用注解方式
 
 #### 1.1 创建springboot工程，添加rabbitmq的依赖
 
@@ -227,7 +227,7 @@ spring:
 
 #### 1.3 rabbitmq的实现
 
-##### -  **无交换机消息队列**
+## -  **无交换机消息队列**
 
 > **解释**：这种消息队列一条消息只能被一个消费者消费，假如只有一个生产者生产一条消息发布到队列，而两个消费从队列中拿这个消息，则第一个消费者能拿到消息，第二个消费者不能拿到消息，当生产者再生产一条消息发布到队列，则第二个消费者可以拿到消息，消费者是按照***[轮询机制]***在队列中取消息的。
 
@@ -365,7 +365,7 @@ public void textdefault() {
 
 ![](images/6.jpg)
 
-##### - **direct exchange交换机(直连交换机)**
+## - **direct exchange交换机(直连交换机)**
 
 > **解释：**
 >
@@ -586,7 +586,7 @@ public class MqReceiverDirectExchange {
 >
 > 即使一个队列绑定多个消费者，队列中的消息依然按照**轮询机制**把消息给消费者消费
 
-##### - fanout Exchange交换机**
+## - fanout Exchange交换机**
 
 > 解释：
 >
@@ -741,7 +741,7 @@ public class MqReceiverFanoutExchange {
 
 
 
-##### - **topic Exchange交换机**
+## - **topic Exchange交换机**
 
 >解释:
 >
@@ -949,7 +949,7 @@ public class MqReceiverFanoutExchange {
 
 
 
-##### - **header Exchange交换机**
+## - **header Exchange交换机**
 
 > 解释：
 >
@@ -1105,7 +1105,7 @@ public class MqReceiverHeadersExchange {
 >
 >从结果可以看出，使用**All**匹配模式时要**完全匹配header**，**key-value**的个数**超过**绑定时的header时也**可以匹配**，**少于**就**无法匹配**。当使用**Any**时，只要有一个**key-value**匹配到绑定时的header，即成功匹配，即至少有一个**key-value**属性与header匹配则成功匹配
 
-##### - **消息发布者确认机制**
+## - **消息发布者确认机制**
 
 >消息发布者在发布消息时，有可能会发送失败，原因可能**交换机不存在**或者**匹配的路由键不存在**，也可能是**网络问题**，在传输过程中出现问题，而正常情况下，我们是不知道消息是否成功发送到队列中。
 >
@@ -1250,7 +1250,7 @@ public class MqSender {
 
    > 在上面的结果中，可以看到**ack**为**true**，因为**directExchange**是存在的，消息可以到达**directExchange**交换机，然而**keyno**路由键并不存在，因此会触发**ReturnCallback**回调，输出一些的信息。
 
-##### - **manual acknowledgements**（手动确认）
+## - **manual acknowledgements**（手动确认）
 
 > 解释：
 >
@@ -1415,8 +1415,7 @@ public class MqSender {
        >
        >**注意1：**如果消息处理失败时，不自己设置重试的次数，则该消息会无限循环重新入队，且回到队列头部，因此该消息后面的消息都会卡在那里无法被消费者接收到。
 
-
-##### - **死信队列**
+## - **死信队列**
 
 >解释：
 >
@@ -1654,7 +1653,7 @@ public class MqSender {
 
 
 
-##### - **rabbitmq属性配置**
+## - **rabbitmq属性配置**
 
 ```yaml
 spring:
@@ -1750,3 +1749,211 @@ spring:
       verify-hostname: true   	#是否启用主机名称认证
 ```
 
+## 2. 调用api方式
+
+- 创建一个连接工具类**ConnectionUtil**，供发布者和消费者创建连接
+
+  ```java
+  package com.hat.rabbitmq.another_way.utils;
+  
+  import com.rabbitmq.client.Connection;
+  import com.rabbitmq.client.ConnectionFactory;
+  
+  import java.io.IOException;
+  import java.util.concurrent.TimeoutException;
+  
+  //创建一个连接工具，以便生产者和消费者连接rabbitmq用
+  public class ConnectionUtil {
+      public static Connection connectionFactory() throws IOException, TimeoutException {
+          //创建一个连接工厂
+          ConnectionFactory factory = new ConnectionFactory();
+          //设置一些连接属性，与用yml配置连接的属性一样
+          factory.setHost("192.168.229.130");
+          factory.setPort(5672);
+          factory.setUsername("guest");
+          factory.setPassword("guest");
+          factory.setVirtualHost("/");
+          //创建一个连接
+          Connection con = factory.newConnection();
+          return con;
+      }
+  }
+  
+  ```
+
+- 创建消息发布者类**Sender**
+
+  ```java
+  package com.hat.rabbitmq.another_way.sender;
+  
+  
+  import com.hat.rabbitmq.another_way.utils.ConnectionUtil;
+  import com.rabbitmq.client.*;
+  import org.slf4j.Logger;
+  import org.slf4j.LoggerFactory;
+  import org.springframework.stereotype.Component;
+  
+  import java.io.IOException;
+  import java.util.concurrent.TimeoutException;
+  
+  //把该类注入到spring容器，方便测试
+  @Component
+  public class Sender {
+      private final static Logger log = LoggerFactory.getLogger(Sender.class);
+      //声明队列名称、交换机名称和路由键
+      private String QUEUE_NAME = "another.directQueue";
+      private String EXCHANGE_NAME = "another.directExchange";
+      private String ROUTING_KEY = "another.direct.routingkey";
+  
+      /**
+       *  direct交换机的消息发布者
+       * @param msg
+       * @throws IOException
+       * @throws TimeoutException
+       */
+      public void directSender(String aexchange,String routingkey,String msg) throws IOException, TimeoutException {
+          //创建一个连接
+          Connection conn = ConnectionUtil.connectionFactory();
+          //创建一个通道
+          Channel channel = conn.createChannel();
+          //创建一个队列
+          channel.queueDeclare(QUEUE_NAME,true,false,false,null);
+          //创建一个direct交换机，如果不使用交换机则不用创建
+          channel.exchangeDeclare(EXCHANGE_NAME,"direct",true);
+          //队列与交换机根据路由键绑定起来
+          channel.queueBind(QUEUE_NAME,EXCHANGE_NAME,ROUTING_KEY);
+          //开启confirm机制
+          channel.confirmSelect();
+          //消费者每次从队列中接收多少个消息，与yml配置的【prefetch】一样
+          channel.basicQos(1);
+          //发布消息
+          channel.basicPublish(aexchange,routingkey,true,null,msg.getBytes());
+          //监听发布者消息是否发布成功
+          channel.addConfirmListener(new ConfirmListener() {
+              //消息发送成功回调
+              @Override
+              public void handleAck(long deliveryTag, boolean multiple) throws IOException {
+                  //deliveryTag：消息标识。multiple：是否处理了之前未发送成功的消息
+                  log.info("[directSender]的【handleAck】deliveryTag==[{}],multiple==[ {} ]",deliveryTag,multiple);
+              }
+              //消息发布失败回调
+              @Override
+              public void handleNack(long deliveryTag, boolean multiple) throws IOException {
+                  log.info("[directSender]的【handleNack】deliveryTag==[{}],multiple==[ {} ]",deliveryTag,multiple);
+              }
+          });
+          //消息入队列失败回调，成功不回调,与rabbitmqTemplate.returnCallback一样
+          channel.addReturnListener((replyCode, replyText, exchange, routingKey, properties, body) ->
+                  log.info("[directSender]的【handleReturn】replyCode==[{}],replyText==[ {} ]," +
+                  "routingKey==[{}],properties==[{}],body==[{}]",replyCode,replyText,exchange,routingKey,properties,body));
+          log.info("[directSender]发送消息--[{}]",msg);
+          //关闭通道
+          channel.close();
+          //关闭连接
+          conn.close();
+      }
+  
+  }
+  
+  ```
+
+- 创建消费者类**Receiver**
+
+  ```java
+  package com.hat.rabbitmq.another_way.receiver;
+  
+  import com.hat.rabbitmq.another_way.sender.Sender;
+  import com.hat.rabbitmq.another_way.utils.ConnectionUtil;
+  import com.rabbitmq.client.*;
+  import org.slf4j.Logger;
+  import org.slf4j.LoggerFactory;
+  
+  import java.io.IOException;
+  import java.util.concurrent.TimeoutException;
+  
+  public class Receiver {
+      private final static Logger log = LoggerFactory.getLogger(Sender.class);
+      //声明队列名称、交换机名称和路由键
+      private String QUEUE_NAME = "another.directQueue";
+      private String EXCHANGE_NAME = "another.directExchange";
+      private String ROUTING_KEY = "another.direct.routingkey";
+      private int count = 0;
+      public void directReceiver() throws IOException, TimeoutException {
+          //创建一个连接
+          Connection conn = ConnectionUtil.connectionFactory();
+          //创建一个通道
+          Channel channel = conn.createChannel();
+  
+          //如果这三个在发布者那里已经创建了可以不写,但是一般都写上
+          //创建一个队列
+          channel.queueDeclare(QUEUE_NAME,true,false,false,null);
+          //创建一个交换机
+          channel.exchangeDeclare(EXCHANGE_NAME,"direct",true);
+          //把队列与交换机绑定起来
+          channel.queueBind(QUEUE_NAME,EXCHANGE_NAME,ROUTING_KEY);
+  
+          //创建一个消费者实例
+          Consumer consumer = new DefaultConsumer(channel){
+              @Override
+              public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                  super.handleDelivery(consumerTag, envelope, properties, body);
+                  String msg = new String(body);
+                  if ("消息4".equals(msg)) {
+                      //假如获取到【消息4】时发生异常重试5次然后丢弃消息
+                      count += 1;
+                      if (count <= 5){
+                          //如果重试次数小于等于5则把消息重新入队
+                          channel.basicNack(envelope.getDeliveryTag(),false,true);
+                          log.info("【directReceiver】重试消息--【 {} 】",msg);
+                      }else {
+                          //重试次数大于5则丢弃消息
+                          channel.basicNack(envelope.getDeliveryTag(),false,false);
+                          count = 0;
+                      }
+  
+                  }else {
+                      log.info("【directReceiver】接收到信息--【 {} 】",msg);
+                      //手动确认
+                      channel.basicAck(envelope.getDeliveryTag(),false);
+                  }
+              }
+          };
+          //消费者监听相应队列，autoAck：开启手动确认
+          channel.basicConsume(QUEUE_NAME,false,consumer);
+      }
+  
+      public static void main(String[] args) throws IOException, TimeoutException {
+          Receiver r = new Receiver();
+          r.directReceiver();
+      }
+  }
+  
+  ```
+
+- 写一个接口测试：
+
+  ```java
+      @Autowired
+      Sender asend;
+      @GetMapping("/asend")
+      public String asend(String exchange,String routingkey,String msg) throws IOException, TimeoutException {
+          for(int i=1; i<=10;i++) {
+              asend.directSender(exchange, routingkey, msg+i);
+          }
+          return "发送消息";
+      }
+  ```
+
+- 发送一个请求可以发布10条消息到队列，结果如下：
+
+  ![](images/30.jpg)
+
+  ![](images/31.jpg)
+
+  > 消息发布者发送了10条消息，且使用**channel.basicQos()****限制了消费者一次只能从队列中取一条数据。
+  >
+  > 可以看出消费者在取第4条消息时使用了**channel.basicNack()**把消息确认为失败，且重试5次，第6次时直接丢弃消息，这一过程完了才会继续从队列中取后面的消息。
+
+  
+
+  - 其他交换器的写法都差不多，这里就演示了direct交换器的。
