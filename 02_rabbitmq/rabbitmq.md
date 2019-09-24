@@ -1425,6 +1425,12 @@ public class MqSender {
 >- 消息被拒绝，**basicNack()**或者**basicReject()**都是拒绝消息的方法，**requeue**要设置成**false**才有效
 >- 消息超出队列的长度
 
+​	**模型图**：
+
+​			![](images/32.jpg)
+
+
+
 1. 创建死信队列
 
    - 继续在**rabbitmqConfiguration**配置类中创建
