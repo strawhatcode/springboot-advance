@@ -290,7 +290,6 @@ public class rabbitmqConfiguration {
         return BindingBuilder.bind(normalQueue()).to(normalExchange()).with("normalkey");
     }
 
-
     //注入CachingConnectionFactory连接工厂，可以设置或者获取yml配置文件中的配置
     @Autowired
     private CachingConnectionFactory factory;
@@ -342,7 +341,6 @@ public class rabbitmqConfiguration {
 //            log.info("【消息丢失】:exchange({})",exchange);
 //            log.info("【消息丢失】:routingKey({})",routingKey);
         });
-
         return rabbit;
     }
 
