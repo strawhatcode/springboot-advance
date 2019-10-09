@@ -2,7 +2,6 @@ package com.hat.redis.utils;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.types.RedisClientInfo;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -12,15 +11,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-@Component
+@Component //把该工具类交给spring管理
 public class RedisUtil {
-    @Autowired
+    @Autowired //注入redisTemplate模板类
     RedisTemplate<String, Object> redisTemplate;
-
-    public void aaa() {
-        List<RedisClientInfo> ll = redisTemplate.getClientList();
-        System.out.println(ll);
-    }
 
     /** *******************【key的常用操作】***********************/
     /**
@@ -166,7 +160,7 @@ public class RedisUtil {
     }
 
     /**
-     * 往redis中添加数据，并指定过期时间，timeout小于1时则设置成永久不过期
+     * 往redis中添加数据，并指定过期时间，timeout小于等于0时则设置成永久不过期
      *
      * @param key     创建的key
      * @param value   对应key的value
@@ -205,7 +199,7 @@ public class RedisUtil {
     }
 
     /**
-     * 只有当key不存在时才添加key-value,并指定过期时间，timeout小于1时则设置成永久不过期
+     * 只有当key不存在时才添加key-value,并指定过期时间，timeout小于等于0时则设置成永久不过期
      *
      * @param key     创建的key
      * @param value   对应key的value
@@ -238,7 +232,7 @@ public class RedisUtil {
     }
 
     /**
-     * 如果key存在则更改value值,并重新设置过期时间(如果更改前有设置过期时间),小于1时永久不过期
+     * 如果key存在则更改value值,并重新设置过期时间(如果更改前有设置过期时间),小于等于0时永久不过期
      *
      * @param key     指定的key
      * @param value   新的value
@@ -432,5 +426,275 @@ public class RedisUtil {
 
     /** *******************【List类型的常用操作】***********************/
 
+    /**
+     * 在key中(list表)的表头添加一条数据(value)，或者在指定数据(prevalue)前添加一条数据(value)
+     * @param key  指定的list表的key
+     * @param prevalue 在prevalue前添加数据，如果在表头添加数据则该参数为null
+     * @param value  添加的数据
+     * @return 添加成功时返回表中有多少条数据，添加失败则返回-1
+     */
+    public long LLeftPush(String key,Object prevalue,Object value){
+        if (prevalue == null) {
+            return redisTemplate.opsForList().leftPush(key, value);
+        }else {
+            return redisTemplate.opsForList().leftPush(key,prevalue,value);
+        }
+    }
 
+    /**
+     * 在list表名为key的表头添加多条数据(value)
+     * @param key  指定的key
+     * @param values 要添加的多个值，添加顺序：从左往右依次往表头添加数据
+     * @return 添加成功时返回添加数据后的列表长度，失败时返回-1
+     */
+    public long LLeftPushAll(String key, Object... values){
+        return redisTemplate.opsForList().leftPushAll(key, values);
+    }
+
+    /**
+     * 删除list表名为key的表头元素，并返回被删除元素的值
+     * @param key 指定的key
+     * @return 返回被删除元素的值
+     */
+    public Object LLeftPop(String key){
+        return redisTemplate.opsForList().leftPop(key);
+    }
+
+    /**
+     * 在key中(list表)的表尾添加一条数据(value)，或者在指定数据(aftervalue)后添加一条数据(value)
+     * @param key  指定的key
+     * @param aftervalue  在aftervalue值后面添加数据，null时则在表尾添加数据
+     * @param value  添加的数据值
+     * @return 添加成功时返回添加数据后的list表长度，失败时返回-1
+     */
+    public long LRightPush(String key,Object aftervalue,Object value){
+        if(aftervalue == null) {
+            return redisTemplate.opsForList().rightPush(key, value);
+        }else {
+            return redisTemplate.opsForList().rightPush(key,aftervalue,value);
+        }
+    }
+
+    /**
+     * 在list表名为key中的表尾添加多条数据
+     * @param key 指定的key
+     * @param values 多个value值
+     * @return 成功时返回添加数据后的list表长度
+     */
+    public long LRightPushAll(String key,Object... values){
+        return redisTemplate.opsForList().rightPushAll(key,values);
+    }
+
+    /**
+     * 删除list表名为key的表尾元素，并返回被删除元素的值
+     * @param key list表名指定的key
+     * @return 返回被删除元素的值
+     */
+    public Object LRightPop(String key){
+        return redisTemplate.opsForList().rightPop(key);
+    }
+
+    /**
+     * 在key中(list表)根据index索引值修改数据
+     * @param key  指定key(相当于一个list表)
+     * @param index 数据索引（从0开始）
+     * @param value 数据值
+     * @return 返回true则插入或修改数据成功，false则失败
+     */
+    public boolean LSet(String key,long index, Object value){
+        try {
+            redisTemplate.opsForList().set(key,index,value);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 在list表名为key中获取索引为index的值
+     * @param key 指定的key
+     * @param index 索引
+     * @return 查到值则返回该值，查不到则返回null
+     */
+    public Object LGet(String key,long index){
+        return redisTemplate.opsForList().index(key,index);
+    }
+
+    /**
+     * 在list表名为key中查找多个值(根据开始和结束索引)
+     * @param key 指定的key
+     * @param start 开始的索引
+     * @param end  结束的索引
+     * @return 返回查找成功的值的列表
+     */
+    public List LGetMulti(String key,long start,long end){
+        return redisTemplate.opsForList().range(key,start,end);
+    }
+
+    /**
+     * 名为key的list表的长度
+     * @param key 指定的key
+     * @return 返回list表的长度
+     */
+    public long LSize(String key){
+        return redisTemplate.opsForList().size(key);
+    }
+
+    /**
+     * 在名为key的list表中根据索引删除list表中的数据
+     * @param key 指定的key
+     * @param start 开始的索引
+     * @param end 结束的索引
+     * @return 返回true删除成功，false删除失败
+     */
+    public boolean LTrim(String key,long start,long end){
+        try {
+            redisTemplate.opsForList().trim(key,start,end);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 在名为key的list表中删除count个值为value的元素
+     * @param key 指定的key
+     * @param count 删除的个数，0时删除全部值为value的元素，正数则从前往后开始删除，负数则从后往前删除count的绝对值个元素
+     * @param value 要删除的元素值
+     * @return 返回删除成功的元素个数
+     */
+    public long LRemove(String key,long count,Object value){
+        return redisTemplate.opsForList().remove(key,count,value);
+    }
+
+    /** *******************【Set类型的常用操作】***********************/
+
+    /**
+     * 往名为key的set表中添加一个或多个元素
+     * @param key 指定的key
+     * @param values 添加的元素(一个或多个)
+     * @return 返回添加成功后的set表长度
+     */
+    public Long SAdd(String key,Object... values){
+        return redisTemplate.opsForSet().add(key,values);
+    }
+
+    /**
+     * 判断在key中是否存在value值
+     * @param key 指定的key
+     * @param value 要判断的value值
+     * @return 返回true则存在，false则不存在
+     */
+    public boolean SIsMember(String key,Object value){
+        return redisTemplate.opsForSet().isMember(key,value);
+    }
+
+    /**
+     * 输出key中所有成员
+     * @param key 指定的key
+     * @return 返回所有成员的集合
+     */
+    public Set SMember(String key){
+        return redisTemplate.opsForSet().members(key);
+    }
+
+    /**
+     * 随机返回一个或多个成员（count小于等于1则随机返回一个成员，大于1时在集合的所有成员中返回count次成员，成员会重复）
+     * @param key 指定的key
+     * @param count 返回几个成员，
+     * @return 返回成员的值
+     */
+    public Object SRandomMember(String key,long count){
+        if (count>1){
+            return redisTemplate.opsForSet().randomMembers(key,count);
+        }else {
+            return redisTemplate.opsForSet().randomMember(key);
+        }
+    }
+
+    /**
+     * 随机返回一个或多个成员（count小于等于1则随机返回一个成员，大于1时在集合的所有成员中返回多个不重复成员）
+     * @param key 指定的key
+     * @param count 返回几个成员
+     * @return 返回成员的值
+     */
+    public Object SDistinctRandomMember(String key,long count){
+        return redisTemplate.opsForSet().distinctRandomMembers(key,count);
+    }
+
+    /**
+     * 返回key集合的长度
+     * @param key 指定的key
+     * @return
+     */
+    public long SSize(String key){
+        return redisTemplate.opsForSet().size(key);
+    }
+
+    /**
+     * 从key集合中随机取出count(小于1时默认为1)个成员并在集合中删除此成员
+     * @param key 指定的key
+     * @param count 取出成员的个数
+     * @return 返回成员的值
+     */
+    public Object SPop(String key,long count){
+        if (count>1) {
+            return redisTemplate.opsForSet().pop(key, count);
+        }else{
+            return redisTemplate.opsForSet().pop(key);
+        }
+    }
+
+    /**
+     * 删除一个或多个成员
+     * @param key 指定的key
+     * @param values 要删除的成员的值
+     * @return 返回删除的个数
+     */
+    public long SRemove(String key, Object... values){
+        return redisTemplate.opsForSet().remove(key, values);
+    }
+
+    /**
+     * 把key集合中的value成员移动到destKey集合中
+     * @param key key集合
+     * @param value key集合中的value
+     * @param destKey 移动到的集合
+     * @return 返回true移动成功，false移动失败
+     */
+    public boolean SMove(String key, Object value, String destKey){
+        return redisTemplate.opsForSet().move(key,value,destKey);
+    }
+
+    /**
+     * 返回key集合与othersKey集合（一个或多个）的差集(key有，othersKey（一个或多个）没有的成员值)
+     * @param key key集合
+     * @param othersKey othersKey集合（一个或多个）
+     * @return 返回key集合与其他集合的的差集
+     */
+    public Set SDiff(String key, String... othersKey){
+        return redisTemplate.opsForSet().difference(key,CollectionUtils.arrayToList(othersKey));
+    }
+
+    /**
+     * 返回key集合与othersKey集合(一个或多个)的交集
+     * @param key key集合
+     * @param othersKey 其他集合
+     * @return 返回交集
+     */
+    public Set SIntersect(String key,String... othersKey){
+        return redisTemplate.opsForSet().intersect(key,CollectionUtils.arrayToList(othersKey));
+    }
+
+    /**
+     * 返回key集合与othersKey集合(一个或多个)的并集
+     * @param key key集合
+     * @param othersKey 其他集合
+     * @return 返回并集
+     */
+    public Set SUnion(String key,String... othersKey){
+        return redisTemplate.opsForSet().union(key,CollectionUtils.arrayToList(othersKey));
+    }
 }

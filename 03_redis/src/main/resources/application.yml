@@ -1,7 +1,34 @@
 spring:
   redis:
-    host: 192.168.229.130
-    port: 6379
-    password: 123456
-    database: 0
-    timeout: 10000
+    host: 192.168.229.130     #redis服务端的地址
+    port: 6379                #redis服务端的端口号
+    password: 123456          #redis的连接密码
+    database: 0               #使用哪一个数据库(索引从0开始)
+    timeout: 10000            #连接超时时间，（单位毫秒）
+    ssl: false                #是否支持ssl，默认false
+    url:                      #连接的url，可以覆盖host、port、password
+    #集群配置
+    cluster:
+      max-redirects:          #在集群中执行命令时要遵循的最大重定向数
+      nodes:                  #集群的节点（host:port），用逗号分开，至少一个
+    #redis的哨兵模式
+    sentinel:
+      master:                 #服务端的名字
+      nodes:                  #节点（host:port），用逗号分开
+    # 使用lettuce客户端连接redis(线程安全的)
+    lettuce:
+      pool:
+        max-active: 8         #连接池中可以分配的最大连接数，默认8，使用负值则无限制
+        max-idle: 8           #连接池中最大的空闲数，默认8,使用负值则无限制
+        min-idle: 0           #连接池中最小的空闲数，默认0
+        max-wait: -1          #连接池中连接数用完后最大等待阻塞时间，使用负值则无限等待
+        time-between-eviction-runs:   #多久进行一次检测，为负值则不检测，
+      shutdown-timeout: 100   #关闭超时时间
+    # 使用jedis客户端连接redis(非线程安全的)
+#    jedis:
+#      pool:
+#        max-active: 8
+#        max-idle: 8
+#        min-idle: 0
+#        max-wait: -1
+#        time-between-eviction-runs:
