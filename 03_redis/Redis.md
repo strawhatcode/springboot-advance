@@ -54,6 +54,16 @@ Redis 是一个开源（BSD许可）的、使用 ANSI C 语言编写的数据库
   ![](images/1.jpg)
 
   > **如果修改配置后还是无法启动容器则去官网下载低版本的配置文件。**
+  
+- 使用Redis Desktop Manager客户端来连接redis
+
+  
+
+  ![](images/4.jpg)
+
+  ![](images/5.jpg)
+
+  **使用客户端可以更直观的看redis的数据**
 
 ## springboot整合redis
 
