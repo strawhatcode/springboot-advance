@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: "jdbc:mysql://localhost:3306/testshiro?characterEncoding=utf8&serverTimezone=UTC"    #数据库连接
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver    #数据库驱动
+mybatis:
+  type-aliases-package: com.hat.shiro.bean      #别名的包(bean类)
+  mapper-locations: classpath:mybatis/mappers/*.xml   #mapper的路径
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl            #打印sql语句
+    map-underscore-to-camel-case: true     #开启驼峰命名法
