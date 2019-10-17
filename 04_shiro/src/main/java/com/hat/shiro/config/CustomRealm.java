@@ -9,6 +9,7 @@ import org.apache.shiro.authz.AuthorizationInfo;
 import org.apache.shiro.authz.SimpleAuthorizationInfo;
 import org.apache.shiro.realm.AuthorizingRealm;
 import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.util.ByteSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
@@ -57,7 +58,9 @@ public class CustomRealm extends AuthorizingRealm {
         //      credentials/hashedCredentials：密码/hash后的密码(使用加密密码时使用)
         //      credentialsSalt：密码加密的盐值，可以不用
         //      realmName：使用的realm的名字，自定义的CustomRealm类名
-        SimpleAuthenticationInfo info = new SimpleAuthenticationInfo(user,user.getPassword(),getName());
+        SimpleAuthenticationInfo info = new SimpleAuthenticationInfo(user,user.getPassword(),
+                                                                    ByteSource.Util.bytes("salt"),getName());
+
         //返回一个认证信息实例
         return info;
     }

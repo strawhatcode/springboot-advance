@@ -573,7 +573,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class shiroController {
 
     @RequestMapping("/login")
-    public Object login(String username, String password){
+    public Object login(String username, 
+                        String password){
         //获取主体
         Subject subject = SecurityUtils.getSubject();
         //判断是否已经认证过，认证过则不再重复认证
@@ -661,3 +662,566 @@ public class shiroController {
    ![](images/3.gif)
 
 这样一个简单的springboot整合shiro的demo就完成了。
+
+
+
+### 2. shiro+redis实现shiro的缓存
+
+### 2.1.引入redis依赖和shiro-redis依赖
+
+```xml
+        <!--添加shiro-redis插件-->
+        <dependency>
+            <groupId>org.crazycake</groupId>
+            <artifactId>shiro-redis</artifactId>
+            <version>3.2.3</version>
+        </dependency>
+
+        <!--添加redis依赖-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+```
+
+### 2.2. 在application.yml中添加redis连接属性配置
+
+```yaml
+spring:
+  # 连接redis的一些配置属性
+  redis:
+    host: 10.24.35.207
+    port: 6379
+    password: 123456
+    database: 1      #使用第2个数据库
+    jedis:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+```
+
+### 2.3.修改configConfig类
+
+1. **声明一些用来连接redis的属性变量和添加redisManager方法，该方法是连接redis时需要的配置，该方法由shiro-redis提供**
+
+   ```java
+       @Value("${spring.redis.host}") //获取application.yml的spring.redis.hosts属性的值
+       private String host;
+       @Value("${spring.redis.port}")
+       private String port;
+       @Value("${spring.redis.password}")
+       private String password;
+       @Value("${spring.redis.database}")
+       private Integer database;    
+   
+   
+   	/**
+        * redis管理器，用来设置连接redis的属性配置
+        * @return
+        */
+       @Bean
+       public RedisManager redisManager(){
+           //实例化redis管理器
+           RedisManager redisManager = new RedisManager();
+           //默认是127.0.0.1：6379，注意这个host包括端口号
+           redisManager.setHost(host+":"+port);
+           //连接redis的密码
+           redisManager.setPassword(password);
+           //设置redis连接超时时间，默认2000ms
+           redisManager.setTimeout(0);
+           //设置使用第几个数据库，默认0
+           redisManager.setDatabase(database);
+           return redisManager;
+       }
+   ```
+
+2. **添加RedisCacheManager方法，该方法是管理shiro用户认证与授权的缓存，也是由shiro-redis提供**
+
+   ```java
+       /**
+        * redis缓存管理器，存放认证和授权信息的缓存，如role、perm和登录等
+        * @return
+        */
+       @Bean
+       public RedisCacheManager redisCacheManager(){
+           //实例化RedisCacheManager
+           RedisCacheManager redisCacheManager = new RedisCacheManager();
+           //设置redis管理器
+           redisCacheManager.setRedisManager(redisManager());
+           //设置主体的id名称，这个值必须是唯一的，默认是id
+           redisCacheManager.setPrincipalIdFieldName("username");
+           //设置缓存保存时间，默认1800秒，单位秒
+           redisCacheManager.setExpire(60 * 60 * 24 * 30); //30天过期
+           //设置缓存的key的前缀，默认"shiro:cache:"
+   //        redisCacheManager.setKeyPrefix("shiro:cache:");
+           return redisCacheManager;
+       }
+   ```
+
+3. **添加RedisSessionDAO方法，该方法是redis给session进行持久化，也是有shiro-redis提供**
+
+   ```java
+       /**
+        * RedisSessionDAO是使用redis为会话内容(session)进行持久化
+        * 保存session的缓存，该缓存在每次访问时都会刷新过期时间
+        * @return
+        */
+       @Bean
+       public RedisSessionDAO redisSessionDAO(){
+           //实例化RedisSessionDAO
+           RedisSessionDAO redisSessionDAO = new RedisSessionDAO();
+           //设置redis管理器
+           redisSessionDAO.setRedisManager(redisManager());
+           //session保存的时间，最好设置成比默认session保存的时间长，默认是30分钟，单位秒
+           redisSessionDAO.setExpire(60 * 60 * 24 * 30); //30天过期
+           //设置session缓存的key前缀，默认"shiro:session:"
+   //        redisSessionDAO.setKeyPrefix("shiro:session:");
+           //sessionId生成器，默认是JavaUuidSessionIdGenerator。
+   //        redisSessionDAO.setSessionIdGenerator(new JavaUuidSessionIdGenerator());
+           return redisSessionDAO;
+       }
+   ```
+
+4. **添加SessionManager方法，该方法是管理session缓存**
+
+   ```java
+       /**
+        * session管理器
+        * @return
+        */
+       @Bean
+       public SessionManager sessionManager(){
+           DefaultWebSessionManager defaultWebSessionManager = new DefaultWebSessionManager();
+           //设置session持久类
+           defaultWebSessionManager.setSessionDAO(redisSessionDAO());
+           //不显示url后面的jsession，默认true
+           defaultWebSessionManager.setSessionIdUrlRewritingEnabled(false);
+           //设置全局session过期时间，默认1800秒，单位毫秒
+           defaultWebSessionManager.setGlobalSessionTimeout(60 * 60 * 24 * 15 *1000); //15天过期
+           return defaultWebSessionManager;
+       }
+   ```
+
+5. **修改CustomRealm方法**
+
+   ```java
+       /**
+        * 实例化自定义的Realm并且把它交给spring管理供SecurityManager使用
+        * @return
+        */
+       @Bean(name = "customRealm")
+       public CustomRealm customRealm(){
+           CustomRealm realm = new CustomRealm();
+           
+   // shiro+redis缓存新增----开始
+   //        realm.setCachingEnabled(true);  //启动缓存，默认true
+   //        realm.setAuthorizationCachingEnabled(true); //启动授权缓存，默认true
+           //启动用户认证缓存，默认false
+           realm.setAuthenticationCachingEnabled(true);
+           //设置用户认证的缓存名称
+           realm.setAuthenticationCacheName("authenticationCache");
+           //设置角色授权和权限授权的缓存名称
+           realm.setAuthorizationCacheName("authorizationCache");
+   // shiro+redis缓存新增----结束
+           
+           return realm;
+       }
+   ```
+
+6. **修改SecurityManager方法**
+
+   ```java
+       /**
+        * shiro的安全管理器方法
+        * @param customRealm 自定义的realm
+        * @return
+        */
+       @Bean(name = "securityManager")
+       public SecurityManager securityManager(@Qualifier("customRealm") CustomRealm customRealm){
+           //实例化DefaultWebSecurityManager，记住是有Web的这个安全管理器
+           DefaultWebSecurityManager securityManager = new DefaultWebSecurityManager();
+           //SecurityManager需要设置自定义的Realm
+           securityManager.setRealm(customRealm);
+   
+   // shiro+redis缓存新增----开始
+           //设置session管理器，保存session缓存到redis
+           securityManager.setSessionManager(sessionManager());
+           //设置redis缓存管理器，保存认证和授权信息到redis
+           securityManager.setCacheManager(redisCacheManager());
+   // shiro+redis缓存新增----结束
+   
+           return securityManager;
+       }
+   ```
+
+7. 用浏览器访问页面，结果如下：
+
+   ![](images/5.jpg)
+
+   > **这是登录了zhangsan帐号的结果，可以看到有用户认证缓存(authenticationCache)、权限授权缓存(authorizationCache)和session缓存。当zhangsan帐号退出时，授权缓存会删除，而用户认证和session缓存则不会删除**
+
+8. **完整的shiroConfig类如下**
+
+```java
+package com.hat.shiro.config;
+
+import org.apache.shiro.mgt.SecurityManager;
+import org.apache.shiro.session.mgt.SessionManager;
+import org.apache.shiro.spring.web.ShiroFilterFactoryBean;
+import org.apache.shiro.web.mgt.DefaultWebSecurityManager;
+import org.apache.shiro.web.session.mgt.DefaultWebSessionManager;
+import org.crazycake.shiro.RedisCacheManager;
+import org.crazycake.shiro.RedisManager;
+import org.crazycake.shiro.RedisSessionDAO;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+//把ShiroConfig类标注为配置类
+@Configuration
+public class ShiroConfig {
+
+    @Value("${spring.redis.host}")//获取application.yml的spring.redis.hosts属性的值
+    private String host;
+    @Value("${spring.redis.port}")
+    private String port;
+    @Value("${spring.redis.password}")
+    private String password;
+    @Value("${spring.redis.database}")
+    private Integer database;
+
+
+    /**
+     * shiro的过滤器方法,该方法用来指定一些过滤规则
+     *
+     * @Qualifier注解：注入名为securityManager的bean
+     * @return
+     */
+    @Bean
+    public ShiroFilterFactoryBean shiroFilterFactoryBean(@Qualifier("securityManager") SecurityManager securityManager){
+        //创建ShiroFilterFactoryBean实例
+        ShiroFilterFactoryBean shiroFilterFactoryBean = new ShiroFilterFactoryBean();
+        //设置安全管理器(SecurityManager),必须要设置，不然在初始化阶段会抛出异常
+        shiroFilterFactoryBean.setSecurityManager(securityManager);
+        //用户未认证通过时跳转的页面，不指定时默认是 /login.jsp
+        shiroFilterFactoryBean.setLoginUrl("/login");
+        //用户认证通过时跳转到的页面，不指定时默认是 /
+        shiroFilterFactoryBean.setSuccessUrl("/main");
+        //用户认证通过，但是无授权时跳转到的页面
+        shiroFilterFactoryBean.setUnauthorizedUrl("/unauthorized");
+        //路由过滤器链，注意是LinkedHashMap，因为要按照顺序来指定规则
+        Map<String,String> chain = new LinkedHashMap<>();
+        //Shiro提供了11种过滤规则,以下是几种常用过滤器：
+        //      anon：匿名，例："/login","anon"；/login路由所有用户都可以访问
+        //      authc：认证，例："/main/*","authc"；/main及其所有子路由需要用户认证成功后才可以访问
+        //      Perms：权限，例："/space","Perms[perm1]"; /space路由需要有user权限才可以访问，可以多个，用逗号隔开
+        //      roles：角色，例："/role","roles[role1，role2]"; /role路由需要同时为role1、role2角色时才可以访问
+        //      user：如果使用了“记住我”功能的用户访问/**时走这个过滤器
+        //      logout：注销，访问/logout地址就退出登录，删除该用户的存在Subject的信息,并且页面回到setLoginUrl()设置的路径
+        chain.put("/login","anon");
+        chain.put("/main","authc");
+        chain.put("/user","roles[user]");
+        chain.put("/manager","roles[manager]");
+        chain.put("/perm_a","perms[a,b]");
+        chain.put("/perm_b","perms[c,d]");
+        chain.put("/logout","logout");
+        //这个过滤规则必须放在最后，意思是除了/login路径外的所有路径都需要用户认证通过才可以访问
+        chain.put("/**","user");
+        //设置过滤链
+        shiroFilterFactoryBean.setFilterChainDefinitionMap(chain);
+        return shiroFilterFactoryBean;
+    }
+
+    /**
+     * shiro的安全管理器方法
+     * @param customRealm 自定义的realm
+     * @return
+     */
+    @Bean(name = "securityManager")
+    public SecurityManager securityManager(@Qualifier("customRealm") CustomRealm customRealm){
+        //实例化DefaultWebSecurityManager，记住是有Web的这个安全管理器
+        DefaultWebSecurityManager securityManager = new DefaultWebSecurityManager();
+        //SecurityManager需要设置自定义的Realm
+        securityManager.setRealm(customRealm);
+
+        //设置session管理器，保存session缓存到redis
+        securityManager.setSessionManager(sessionManager());
+        //设置redis缓存管理器，保存认证和授权信息到redis
+        securityManager.setCacheManager(redisCacheManager());
+
+        return securityManager;
+    }
+
+    /**
+     * 实例化自定义的Realm并且把它交给spring管理供SecurityManager使用
+     * @return
+     */
+    @Bean(name = "customRealm")
+    public CustomRealm customRealm(){
+        CustomRealm realm = new CustomRealm();
+
+//        realm.setCachingEnabled(true);  //启动缓存，默认true
+//        realm.setAuthorizationCachingEnabled(true); //启动授权缓存，默认true
+        //启动用户认证缓存，默认false
+        realm.setAuthenticationCachingEnabled(true);
+        //设置用户认证的缓存名称
+        realm.setAuthenticationCacheName("authenticationCache");
+        //设置角色授权和权限授权的缓存名称
+        realm.setAuthorizationCacheName("authorizationCache");
+        return realm;
+    }
+
+    /**
+     * redis管理器，用来设置连接redis的属性配置
+     * @return
+     */
+    @Bean
+    public RedisManager redisManager(){
+        //实例化redis管理器
+        RedisManager redisManager = new RedisManager();
+        //默认是127.0.0.1：6379，注意这个host包括端口号
+        redisManager.setHost(host+":"+port);
+        //连接redis的密码
+        redisManager.setPassword(password);
+        //设置redis连接超时时间，默认2000ms
+        redisManager.setTimeout(0);
+        //设置使用第几个数据库，默认0
+        redisManager.setDatabase(database);
+        return redisManager;
+    }
+
+    /**
+     * redis缓存管理器，存放认证和授权信息的缓存，如role、perm和登录等
+     * @return
+     */
+    @Bean
+    public RedisCacheManager redisCacheManager(){
+        //实例化RedisCacheManager
+        RedisCacheManager redisCacheManager = new RedisCacheManager();
+        //设置redis管理器
+        redisCacheManager.setRedisManager(redisManager());
+        //设置主体的id名称，这个值必须是唯一的，默认是id
+        redisCacheManager.setPrincipalIdFieldName("username");
+        //设置缓存保存时间，默认1800秒，单位秒
+        redisCacheManager.setExpire(60 * 60 * 24 * 30); //30天过期
+        //设置缓存的key的前缀，默认"shiro:cache:"
+//        redisCacheManager.setKeyPrefix("shiro:cache:");
+        return redisCacheManager;
+    }
+
+    /**
+     * RedisSessionDAO是使用redis为会话内容(session)进行持久化
+     * 保存session的缓存，该缓存在每次访问时都会刷新过期时间
+     * @return
+     */
+    @Bean
+    public RedisSessionDAO redisSessionDAO(){
+        //实例化RedisSessionDAO
+        RedisSessionDAO redisSessionDAO = new RedisSessionDAO();
+        //设置redis管理器
+        redisSessionDAO.setRedisManager(redisManager());
+        //session保存的时间，最好设置成比默认session保存的时间长，默认是30分钟，单位秒
+        redisSessionDAO.setExpire(60 * 60 * 24 * 30); //30天过期
+        //设置session缓存的key前缀，默认"shiro:session:"
+//        redisSessionDAO.setKeyPrefix("shiro:session:");
+        //sessionId生成器，默认是JavaUuidSessionIdGenerator。
+//        redisSessionDAO.setSessionIdGenerator(new JavaUuidSessionIdGenerator());
+        return redisSessionDAO;
+    }
+
+    /**
+     * session管理器
+     * @return
+     */
+    @Bean
+    public SessionManager sessionManager(){
+        DefaultWebSessionManager defaultWebSessionManager = new DefaultWebSessionManager();
+        //设置session持久类
+        defaultWebSessionManager.setSessionDAO(redisSessionDAO());
+        //不显示url后面的jsession，默认true
+        defaultWebSessionManager.setSessionIdUrlRewritingEnabled(false);
+        //设置全局session过期时间，默认1800秒，单位毫秒
+        defaultWebSessionManager.setGlobalSessionTimeout(60 * 60 * 24 * 15 *1000); //15天过期
+        return defaultWebSessionManager;
+    }
+
+}
+```
+
+### 3.使用密码加密
+
+### 3.1.在shiroConfig类中添加HashedCredentialsMatcher方法
+
+```java
+    @Bean
+    public HashedCredentialsMatcher hashedCredentialsMatcher(){
+        HashedCredentialsMatcher credentialsMatcher = new HashedCredentialsMatcher();
+        //使用md5算法加密
+        credentialsMatcher.setHashAlgorithmName("MD5");
+        //加密的迭代次数，如:md5(md5())
+        credentialsMatcher.setHashIterations(2);
+        //保存密码使用hex编码，默认true，使用base64则设为false
+        credentialsMatcher.setStoredCredentialsHexEncoded(true);
+        return credentialsMatcher;
+    }
+```
+
+### 3.2.修改CustomRealm方法，添加一条属性
+
+```java
+        //启动用户认证缓存，默认false。注意：如果开启认证缓存的话在使用密码加密时会抛出序列化异常
+//        realm.setAuthenticationCachingEnabled(true);
+
+        //设置使用密码加密算法
+        realm.setCredentialsMatcher(hashedCredentialsMatcher());
+
+```
+
+> **注意：要把`realm.setAuthenticationCachingEnabled(true);`注释掉或者改成false，如果启动了认证缓存，使用密码加密时会报序列化异常**
+
+
+
+### 3.3.在CustomRealm类中修改AuthenticationInfo(认证)方法
+
+把SimpleAuthenticationInfo的参数增加**盐值**，盐值最好要根据自己的意愿设置一个单词，注意是**ByteSource**类型
+
+```java
+ SimpleAuthenticationInfo info = new SimpleAuthenticationInfo(user,user.getPassword(),ByteSource.Util.bytes("salt"),getName());
+```
+
+### 3.4.自己创建了一个md5加密测试类
+
+这个类主要是根据加密的逻辑生成一个加密的值，然后把这个值存到数据库，方便测试用。
+
+```java
+package com.hat.shiro.utils;
+
+
+import org.apache.shiro.crypto.hash.SimpleHash;
+import org.apache.shiro.util.ByteSource;
+
+/**
+ * 测试md5和盐值加密密码
+ */
+public class md5 {
+
+    public static final String md5(String password, String salt){
+        //加密方式
+        String hashAlgorithmName = "MD5";
+        //盐：为了即使相同的密码不同的盐加密后的结果也不同
+        ByteSource byteSalt = ByteSource.Util.bytes(salt);
+        //密码
+        Object source = password;
+        //加密次数
+        int hashIterations = 2;
+        SimpleHash result = new SimpleHash(hashAlgorithmName, source, byteSalt, hashIterations);
+        return result.toString();
+    }
+
+    public static void main(String[] args) {
+        String password = md5("123456", "salt");
+        System.out.println(password);
+        //加密后的结果
+        //00b3187384f2708025074f28764a4a30
+    }
+}
+```
+
+### 3.5.修改数据库User表的用户密码，用于测试
+
+![](images/6.jpg)
+
+### 3.6.在浏览器输入localhost:8080/login?username=zhangsan&password=123456登录即可
+
+### 3.7.注意事项：
+
+如果在设置加密密码之前进行了缓存认证，即有以前未加密的信息存到缓存中。需要清除缓存才行，不然会一直报
+
+ `**Submitted credentials for token [.....]  did not match the expected credentials.**`这个异常。如果有报这个异常时清除下缓存即可
+
+### 4. 使用注解方式来设置权限
+
+1. **继续修改shiroConfig类添加两个方法**
+
+   ```java
+       /**
+        * 以下两个bean开启权限和角色注解支持
+        * DefaultAdvisorAutoProxyCreator与AuthorizationAttributeSourceAdvisor都要配置才生效
+        * 在controller类中使用@RequiresPermissions("pernm_a")
+        *                  和@RequiresRoles("role")
+        * @param
+        * @return
+        */
+       @Bean
+       public DefaultAdvisorAutoProxyCreator defaultAdvisorAutoProxyCreator(){
+           DefaultAdvisorAutoProxyCreator defaultAdvisorAutoProxyCreator = new DefaultAdvisorAutoProxyCreator();
+           defaultAdvisorAutoProxyCreator.setProxyTargetClass(true);
+           return defaultAdvisorAutoProxyCreator;
+       }
+       @Bean
+       public AuthorizationAttributeSourceAdvisor authorizationAttributeSourceAdvisor(
+               @Qualifier("securityManager") SecurityManager securityManager){
+           AuthorizationAttributeSourceAdvisor advisor = new AuthorizationAttributeSourceAdvisor();
+           advisor.setSecurityManager(securityManager);
+           return advisor;
+       }
+   ```
+
+2. **在controller类中添加两个路由**
+
+   ```java
+       //注解方式设置权限
+       @RequiresPermissions("perm_c")
+       @RequestMapping("/perm_c")
+       public Object perm_c(){
+           return "进入需要perm_c权限的perm_c页面";
+       }
+   
+   	//注解方式设置角色权限
+       @RequiresRoles("user,manager")
+       @RequestMapping("/roles")
+       public Object roles(){
+           return "进入需要user,manager角色的user,manager页面";
+       }
+   ```
+
+3. 使用浏览器测试
+
+   ![](images/4.gif)
+
+   > **注解方式设置权限就完成了，但是又出现新的问题，使用注解方式设置权限后，当该用户无该权限时不会跳转到setUnauthorizedUrl设置的页面，而是直接抛出500错误**
+
+4. **解决使用注解方式设置权限不跳转到无权限页面**
+
+   **在shiroConfig类中添加以下bean，把捕获到的AuthorizationException异常都显示/unauthorized页面的内容，而不显示500错误**
+
+   ```java
+    /**
+        * 捕获异常并设置显示指定页面的内容
+        * @return
+        */
+       @Bean
+       public SimpleMappingExceptionResolver simpleMappingExceptionResolver(){
+           SimpleMappingExceptionResolver resolver = new SimpleMappingExceptionResolver();
+           Properties properties = new Properties();
+           properties.setProperty("org.apache.shiro.authz.AuthorizationException","/unauthorized");
+           resolver.setExceptionMappings(properties);
+           return resolver;
+       }
+   ```
+
+   重新运行项目，打开浏览器再测试如下：
+
+   ![](images/5.gif)
+
+   > **从上图可以看出，当无权限访问时不会直接显示500错误了，而是显示了指定页面(/unauthorized)的内容，**
+   >
+   > **但是使用了注解方式设置权限的页面不会直接跳转到/unauthorized页面。而使用过滤链设置的权限还是会跳转到/unauthorized页面**
+
+   
+

@@ -2,8 +2,11 @@ package com.hat.shiro.controller;
 
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.*;
+import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.apache.shiro.subject.Subject;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 
@@ -11,7 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class shiroController {
 
     @RequestMapping("/login")
-    public Object login(String username, String password){
+    public Object login(String username,
+                        String password){
         //获取主体
         Subject subject = SecurityUtils.getSubject();
         //判断是否已经认证过，认证过则不再重复认证
@@ -80,4 +84,15 @@ public class shiroController {
         return "无权限进入页面";
     }
 
+    @RequiresPermissions("perm_c")
+    @RequestMapping("/perm_c")
+    public Object perm_c(){
+        return "进入需要perm_c权限的perm_c页面";
+    }
+
+    @RequiresRoles("user,manager")
+    @RequestMapping("/roles")
+    public Object roles(){
+        return "进入需要user,manager角色的user,manager页面";
+    }
 }

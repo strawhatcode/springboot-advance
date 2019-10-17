@@ -4,6 +4,17 @@ spring:
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver    #数据库驱动
+  # 连接redis的一些配置属性
+  redis:
+    host: 10.24.35.207
+    port: 6379
+    password: 123456
+    database: 1      #使用第2个数据库
+    jedis:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
 mybatis:
   type-aliases-package: com.hat.shiro.bean      #别名的包(bean类)
   mapper-locations: classpath:mybatis/mappers/*.xml   #mapper的路径
