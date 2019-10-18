@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: "jdbc:mysql://127.0.0.1:3306/testshiro?characterEncoding=utf-8&serverTimezone=UTC"
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+mybatis:
+  mapper-locations: classpath:mapper/*.xml       #扫描mapper xml文件路径
+  #别名的实体类与resultMap属性功能相似，
+  #如果实体类里的属性名与数据库表里的字段名一样，可以不设置resultMap。否则必须使用redultMap。
+  type-aliases-package: "com.hat.mybatis.bean"
+  configuration:
+    map-underscore-to-camel-case: true  #开启驼峰命名法，可以把mysql里有下划线的字段名转成驼峰命名，如user_nick转成userNick
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  #打印数据库语句日志
