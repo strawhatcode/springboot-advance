@@ -23,6 +23,14 @@ mybatis根据配置文件(application.yml或者mybatis-config.xml)使用sqlsessi
 
 ![](images/1.png)
 
+**这里有两篇关于mybatis的实现原理与工作流程的博客，可以更直观更深入了解mybatis是如何运作的**
+
+[**mybatis实现原理**](https://blog.csdn.net/u014745069/article/details/80788127)
+
+[**mybatis工作流程**](https://www.cnblogs.com/dongying/p/4142476.html)
+
+
+
 ## springboot整合mybatis
 
 ### 1.实现mybatis
