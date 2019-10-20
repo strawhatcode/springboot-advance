@@ -339,3 +339,104 @@ public class Application {
 ### 1.9 启动项目使用postman测试
 
 ![](images/3.jpg)
+
+### 1.10 关于resultMap的一些补充
+
+在上面的例子中，我使用了在application.yml配置文件中配置别名的方式供mybatis的映射文件mapper.xml使用`type-aliases-package: "com.hat.mybatis.bean"`，这种方式对**数据库的字段名与实体类的变量名一致**的时候很方便，但是当数据库的字段名与实体类的变量名不一样时就需要在mapper.xml文件中使用resultMap方式来设置别名。
+
+实现：
+
+- 把application.yml配置文件中的**type-aliases-package**注释掉
+
+- 在userMapper.xml文件中添加resultMap的属性配置
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8" ?>
+  
+  <!DOCTYPE mapper
+          PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+          "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  <!--namespace：必须，作用一：该命名空间可以把不同的语句区分开来，建议使用全路径名以防出现冲突
+                       作用二：与mapper接口进行绑定，把sql语句映射到mapper接口中-->
+  <mapper namespace="com.hat.mybatis.mapper.UserMapper">
+      
+      <!--resultMap属性配置。  id：resultMap的名字，type：实体类的全路径-->
+      <resultMap id="userResultMap" type="com.hat.mybatis.bean.User">
+          <!--这个id属性是数据库的主键-->
+          <id property="id" column="id"/> 
+          <!--result 属性是数据库其他字段-->
+          <!-- property: 实体类中的变量名；column：数据库中的字段名-->
+          <result property="username" column="username"/>
+          <result property="password" column="password"/>
+          <result property="role" column="role"/>
+          <result property="userNick" column="user_nick"/>
+      </resultMap>
+      
+      <!--resultType：结果集的类型，查询结果的数据是什么类型-->
+      <!--<select id="getUserByUsername" resultType="User">-->
+          <!--select * from user where username=#{username}-->
+      <!--</select>-->
+      
+      <!--如果使用了resultMap的话，就需要把resultType改成resultMap-->
+      <select id="getUserByUsername" resultMap="userResultMap">
+      select * from user where username=#{username}
+      </select>
+  </mapper>
+  ```
+
+  > **注意：**
+  >
+  > - **resultMap标签中的id属性就是 select语句中resultMap的参数**
+  > - **resultMap标签里的id标签是数据库的主键**
+  > - **result标签与id标签里的property属性是实体类的变量名，必须与实体类中的变量名一致，否则会报异常；column属性是数据的字段名，必须与数据库中的字段名一致，否则查询结果中该字段的值是null，property与column要相对应，否则结果会错乱**
+
+- 启动项目测试结果如下：
+
+  ![](images/4.jpg)
+
+- 如果我把resultMap中的user_nick改成nick，则结果如下：
+
+  ![](images/5.jpg)
+
+  可以看出来，nick变量的值是null
+
+- 关于resultMap的一个发现，只要我设置了resultMap标签的id属性和type属性，不写子标签的id和result，结果也能正常出来。我把id和result标签注释掉
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8" ?>
+  
+  <!DOCTYPE mapper
+          PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+          "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  <!--namespace：必须，作用一：该命名空间可以把不同的语句区分开来，建议使用全路径名以防出现冲突
+                       作用二：与mapper接口进行绑定，把sql语句映射到mapper接口中-->
+  <mapper namespace="com.hat.mybatis.mapper.UserMapper">
+      <!--resultMap属性配置。  id：resultMap的名字，type：实体类的全路径-->
+      <resultMap id="userResultMap" type="com.hat.mybatis.bean.User">
+          <!--&lt;!&ndash;这个id属性是数据库的主键&ndash;&gt;-->
+          <!--<id property="id" column="id"/>-->
+          <!--&lt;!&ndash;result 属性是数据库其他字段&ndash;&gt;-->
+          <!--&lt;!&ndash; property: 实体类中的变量名；column：数据库中的字段名&ndash;&gt;-->
+          <!--<result property="username" column="username"/>-->
+          <!--<result property="password" column="password"/>-->
+          <!--<result property="role" column="role"/>-->
+          <!--<result property="nick" column="nick"/>-->
+      </resultMap>
+      <!--resultType：结果集的类型，查询结果的数据是什么类型-->
+      <!--<select id="getUserByUsername" resultType="User">-->
+          <!--select * from user where username=#{username}-->
+      <!--</select>-->
+  
+      <!--如果使用了resultMap的话，就需要把resultType改成resultMap-->
+      <select id="getUserByUsername" resultMap="userResultMap">
+      select * from user where username=#{username}
+      </select>
+  </mapper>
+  
+  ```
+
+  
+
+  再重开项目执行的结果：
+
+  ![](images/6.jpg)
