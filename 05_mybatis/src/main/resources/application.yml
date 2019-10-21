@@ -12,3 +12,4 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true  #开启驼峰命名法，可以把mysql里有下划线的字段名转成驼峰命名，如user_nick转成userNick
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  #打印数据库语句日志
+#    cache-enabled: true

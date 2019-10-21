@@ -440,3 +440,494 @@ public class Application {
   再重开项目执行的结果：
 
   ![](images/6.jpg)
+
+### 1.11 mybatis的缓存
+
+1. **一级缓存**
+
+   mybatis默认开启了一级缓存，可以在配置文件中设置**local-cache-scope**属性，该属性有两个值--**SESSION**(默认)和**STATEMENT**。该两个值只是缓存的范围不同
+
+   > - **SESSION：**在一个同一个会话（sqlSession）中的语句会被缓存。
+   > - **STATEMENT：**只会缓存当前这个STATEMENT的语句，即只会缓存当前执行的一条sql操作语句
+
+   **注意：**在springboot项目中，mybatis的一级缓存虽然是开启的，但是是失效的，如果想让一级缓存工作，需要给该服务开启事务，在rest方法上添加@Transactional注解
+
+   当不开启事务时：
+
+   ```java
+       @RequestMapping("/user/{username}")
+   //    @Transactional
+       public Object getUser(@PathVariable String username){
+           //根据用户名查询该用户的信息并返回给前端
+           System.out.println(userService.getUserByUsername(username)+"[1111111]");
+           System.out.println(userService.getUserByUsername(username)+"[2222222]");
+           User user = userService.getUserByUsername(username);
+           System.out.println(user+"[3333333]");
+           return user;
+       }
+   ```
+
+   结果如下：
+
+   ![](images/7.jpg)
+
+   >**可以看出来一级缓存是失效的，且每个sqlSession都是不一样的。**
+
+   
+
+   当开启了事务：
+
+   ```java
+       @RequestMapping("/user/{username}")
+       @Transactional
+       public Object getUser(@PathVariable String username){
+           //根据用户名查询该用户的信息并返回给前端
+           System.out.println(userService.getUserByUsername(username)+"[1111111]");
+           System.out.println(userService.getUserByUsername(username)+"[2222222]");
+           User user = userService.getUserByUsername(username);
+           System.out.println(user+"[3333333]");
+           return user;
+       }
+   ```
+
+   结果如下：
+
+   ![](images/8.jpg)
+
+   > 可以看出只运行了一次数据库查询，且sqlSession都是一样的。这样就成功让一级缓存生效了
+
+   一级缓存的补充。
+
+   
+
+   - 比如在**查询--修改--查询**这样的情景中（同一个sqlSession），首先进行了查询，那么sqlSession会缓存了该数据，然后我们修改这这项数据，最后再查询。那么第2次的查询会重新进行数据库查询。
+   - 查询（sqlSession1）-- 修改（sqlSession2）-- 查询（sqlSession1）-- 查询（sqlSession2）这样的一个情景中，第二个查询（sqlSession1）的结果是第一个查询（sqlSession1）中缓存的数据，就是**修改之前**的数据；第四个查询（sqlSession2）是**修改之后**的数据，且该数据是进行数据库查询的。
+
+   **上面的两个补充中可以更好的佐证一级缓存是在sqlSession内部缓存的。**
+
+2. **二级缓存**
+
+   mybatis的二级缓存与一级缓存类似，不过二级缓存的范围是整个命名空间（namespace），且二级缓存的可以使用第三方的缓存来实现。当开启二级缓存后数据库操作顺序为：**二级缓存——>一级缓存——>数据库**
+
+   开启二级缓存只需要在mapper.xml映射文件中添加 `<cache/>`标签即可。
+
+   **注意：开启二级缓存需要实体类User实现序列化**
+
+   **实体类User实现序列化：**
+
+   `public class User implements Serializable{`
+
+   **在mapper.xml映射文件开启二级缓存：**
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8" ?>
+   
+   <!DOCTYPE mapper
+           PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+           "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+   <!--namespace：必须，作用一：该命名空间可以把不同的语句区分开来，建议使用全路径名以防出现冲突
+                        作用二：与mapper接口进行绑定，把sql语句映射到mapper接口中-->
+   <mapper namespace="com.hat.mybatis.mapper.UserMapper">
+       <!--开启二级缓存-->
+       <cache/>
+       <!--resultMap属性配置。  id：resultMap的名字，type：实体类的全路径-->
+       <resultMap id="userResultMap" type="com.hat.mybatis.bean.User">
+           <!--&lt;!&ndash;这个id属性是数据库的主键&ndash;&gt;-->
+           <!--<id property="id" column="id"/>-->
+           <!--&lt;!&ndash;result 属性是数据库其他字段&ndash;&gt;-->
+           <!--&lt;!&ndash; property: 实体类中的变量名；column：数据库中的字段名&ndash;&gt;-->
+           <!--<result property="username" column="username"/>-->
+           <!--<result property="password" column="password"/>-->
+           <!--<result property="role" column="role"/>-->
+           <!--<result property="nick" column="nick"/>-->
+       </resultMap>
+       <!--resultType：结果集的类型，查询结果的数据是什么类型-->
+       <!--<select id="getUserByUsername" resultType="User">-->
+           <!--select * from user where username=#{username}-->
+       <!--</select>-->
+   
+       <!--如果使用了resultMap的话，就需要把resultType改成resultMap-->
+       <select id="getUserByUsername" resultMap="userResultMap">
+       select * from user where username=#{username}
+       </select>
+   </mapper>
+   
+   ```
+
+   **启动项目测试结果如下：**
+
+   ![](images/9.jpg)
+
+   > **这里我发送了两次请求，黄色框中是创建了两个sqlSession，这里只查询了一次数据。**
+
+   
+
+   二级缓存也存在一些失效的时候，比如在多表查询时，改变了表中的数据后，再次查询结果是第一次查询时的结果，也就是读取了缓存中的脏数据。因此可以使用`<cache-ref>`标签关联两个namespace来解决这个问题。
+
+   这里创建一套使用多表内连接查询的例子：
+
+   - 创建UserWithPerms实体类
+
+     ```java
+     package com.hat.mybatis.bean;
+     
+     import java.io.Serializable;
+     //使用二级缓存实体类必须实现序列化
+     public class UserWithPerms implements Serializable {
+         private int id;
+         private String username;
+         private String password;
+         private String userNick;
+         private String role;
+         private String perm;
+     
+         public UserWithPerms() {
+         }
+     
+         public int getId() {
+             return id;
+         }
+     
+         public void setId(int id) {
+             this.id = id;
+         }
+     
+         public String getUsername() {
+             return username;
+         }
+     
+         public void setUsername(String username) {
+             this.username = username;
+         }
+     
+         public String getPassword() {
+             return password;
+         }
+     
+         public void setPassword(String password) {
+             this.password = password;
+         }
+     
+         public String getUserNick() {
+             return userNick;
+         }
+     
+         public void setUserNick(String userNick) {
+             this.userNick = userNick;
+         }
+     
+         public String getPerm() {
+             return perm;
+         }
+     
+         public void setPerm(String perm) {
+             this.perm = perm;
+         }
+     
+     
+     
+         public String getRole() {
+             return role;
+         }
+     
+         public void setRole(String role) {
+             this.role = role;
+         }
+     
+         @Override
+         public String toString() {
+             return "UserWithPerms{" +
+                     "id=" + id +
+                     ", username='" + username + '\'' +
+                     ", password='" + password + '\'' +
+                     ", userNick='" + userNick + '\'' +
+                     ", role='" + role + '\'' +
+                     ", perm='" + perm + '\'' +
+                     '}';
+         }
+     }
+     
+     ```
+
+   - 创建UserWithPermMapper接口类
+
+     ```java
+     package com.hat.mybatis.mapper;
+     
+     import com.hat.mybatis.bean.UserWithPerms;
+     
+     public interface UserWithPermMapper {
+         UserWithPerms getUserWithPerm(String username);
+     }
+     
+     ```
+
+   - 创建UserWithPermService和UserWithPermServiceImpl实现类
+
+     ```java
+     package com.hat.mybatis.service;
+     
+     import com.hat.mybatis.bean.UserWithPerms;
+     
+     public interface UserWithPermService {
+         UserWithPerms getUserWithPerm(String username);
+     }
+     
+     ```
+
+     ```java
+     package com.hat.mybatis.service.impl;
+     
+     import com.hat.mybatis.bean.UserWithPerms;
+     import com.hat.mybatis.mapper.UserWithPermMapper;
+     import com.hat.mybatis.service.UserWithPermService;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.stereotype.Service;
+     
+     @Service
+     public class UserWithPermServiceImpl implements UserWithPermService {
+         @Autowired
+         UserWithPermMapper userWithPermMapper;
+         @Override
+         public UserWithPerms getUserWithPerm(String username) {
+             return userWithPermMapper.getUserWithPerm(username);
+         }
+     }
+     
+     ```
+
+   - 创建UserWithPermMapper.xml映射文件
+
+     ```java
+     <?xml version="1.0" encoding="UTF-8" ?>
+     
+     <!DOCTYPE mapper
+             PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+             "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+     <mapper namespace="com.hat.mybatis.mapper.UserWithPermMapper">
+         <!--开启二级缓存-->
+         <cache/>
+         <!--设置resultMap-->
+         <resultMap id="UWPResultMap" type="com.hat.mybatis.bean.UserWithPerms"></resultMap>
+         <!--两表使用内连接查询-->
+         <select id="getUserWithPerm" resultMap="UWPResultMap">
+             SELECT * FROM user inner join roles_perms on user.role = roles_perms.role
+             where user.username = #{username}
+         </select>
+     </mapper>
+     ```
+
+   - 创建Permission实体类（下面修改权限时用的）
+
+     ```java
+     package com.hat.mybatis.bean;
+     
+     import java.io.Serializable;
+     
+     public class Permission implements Serializable {
+         private int id;
+         private String role;
+         private String perm;
+     
+         public Permission() {
+             super();
+         }
+     
+         public Permission(int id, String role, String perm) {
+             this.id = id;
+             this.role = role;
+             this.perm = perm;
+     
+         }
+     
+         public int getid() {
+             return id;
+         }
+     
+         public void setid(int id) {
+             this.id = id;
+         }
+     
+         public String getRole() {
+             return role;
+         }
+     
+         public void setRole(String role) {
+             this.role = role;
+         }
+     
+         public String getPerm() {
+             return perm;
+         }
+     
+         public void setPerm(String perm) {
+             this.perm = perm;
+         }
+     
+         @Override
+         public String toString() {
+             return "Permission{" +
+                     "id=" + id +
+                     ", role='" + role + '\'' +
+                     ", perm='" + perm + '\'' +
+                     '}';
+         }
+     }
+     
+     ```
+
+   - 创建PermsMapper接口
+
+     ```java
+     package com.hat.mybatis.mapper;
+     
+     import com.hat.mybatis.bean.Permission;
+     
+     import java.util.List;
+     
+     public interface PermsMapper {
+     
+         //根据p_id修改权限
+         Integer updatePerm(int p_id, String perm);
+     }
+     
+     ```
+
+   - 创建PermsService和PermsServiceImpl实现类
+
+     ```java
+     package com.hat.mybatis.service;
+     
+     import com.hat.mybatis.bean.Permission;
+     
+     import java.util.List;
+     
+     public interface PermsService {
+         Integer updatePerm(int p_id,String perm);
+     }
+     ```
+
+     ```java
+     package com.hat.mybatis.service.impl;
+     
+     import com.hat.mybatis.bean.Permission;
+     import com.hat.mybatis.mapper.PermsMapper;
+     import com.hat.mybatis.service.PermsService;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.stereotype.Service;
+     
+     import java.util.List;
+     
+     @Service
+     public class PermsServiceImpl implements PermsService {
+         @Autowired
+         PermsMapper permsMapper;
+         //这里第一个参数是权限表中的id，perm是修改后的权限
+         @Override
+         public Integer updatePerm(int p_id,String perm) {
+             return permsMapper.updatePerm(p_id,perm);
+         }
+     }
+     
+     ```
+
+   - 创建PermsMapper映射文件
+
+     ```xml
+     <?xml version="1.0" encoding="UTF-8" ?>
+     
+     <!DOCTYPE mapper
+             PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+             "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+     
+     <mapper namespace="com.hat.mybatis.mapper.PermsMapper">
+         <!--开启二级缓存-->
+         <cache/>
+         <resultMap id="permsResultMap" type="com.hat.mybatis.bean.Permission">
+         </resultMap>
+         <update id="updatePerm" >
+             update roles_perms set perm = #{perm} where id = #{p_id}
+         </update>
+     </mapper>
+     ```
+
+   - 继续在userController类中添加路由
+
+     ```java
+     	//修改权限的api
+         @RequestMapping("/update/perm")
+         @Transactional
+         public int updatePerm(int id,String perm){
+             int result = permsService.updatePerm(id,perm);
+             return result;
+         }
+     	//多表查询的api
+         @RequestMapping("/getuser")
+         @Transactional
+         public Object getUserPerms(String username){
+             UserWithPerms userWithPerms = userWithPermService.getUserWithPerm(username);
+             System.out.println(userWithPerms);
+             return userWithPerms;
+         }
+     ```
+
+   - 查询——>修改权限——>查询结果如下：
+
+     
+
+     ![](images/10.jpg)
+
+     > **发现使用多表查询时，二级缓存也失效了。修改数据后再次查询的结果是修改数据前缓存的数据。**
+
+     
+
+   - 在PermsMapper.xml映射文件中添加`<cache-ref>`,这样两个映射文件对应的SQL操作都使用的是同一块缓存了
+
+     
+
+     ```xml
+     <?xml version="1.0" encoding="UTF-8" ?>
+     
+     <!DOCTYPE mapper
+             PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+             "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+     
+     <mapper namespace="com.hat.mybatis.mapper.PermsMapper">
+         <!--开启二级缓存-->
+         <cache/>
+         
+         <!--缓存引用UserWithPermMapper的namespace。
+         这样当前映射文件和UserWithPermMapper映射文件都是用同一个缓存-->
+         <cache-ref namespace="com.hat.mybatis.mapper.UserWithPermMapper"/>
+         
+         <resultMap id="permsResultMap" type="com.hat.mybatis.bean.Permission">
+         </resultMap>
+         <select id="getPermsByUsername" resultMap="permsResultMap">
+             select * from roles_perms where role = #{role}
+         </select>
+         <update id="updatePerm" >
+             update roles_perms set perm = #{perm} where id = #{p_id}
+         </update>
+     </mapper>
+     ```
+
+   - 再次测试结果如下：
+
+     ![](images/11.jpg)
+
+     > **在结果图中可以看出，修改数据后再查询时，会从数据库中查数据，且数据是修改后的数据。这样就可以解决多表查询时二级缓存失效的问题。**
+     >
+     > **注意：`<cache-ref>`是在修改数据的那个映射文件中添加的，不可以反过来。**
+
+     最后。关于mybatis缓存机制的源码可以看这篇文章 [mybatis缓存机制](https://tech.meituan.com/2018/01/19/mybatis-cache.html)
+
+### 1.12 使用注解方式代替映射文件
+
+mybatis提供了@select、@update、@delete、@insert这几种注解，只需要在**mapper接口**中添加这些注解就行，参数就是sql语句。比如：
+
+```java
+    @Select("select * from user where username = #{username}")
+    User getUser(String username);
+```
+
+不过这种方式只能进行一些简单的sql数据库操作。如果有复杂的sql操作还是需要使用xml映射文件方式来编写。

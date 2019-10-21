@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hat.mybatis.mapper.PermsMapper">
+    <!--开启二级缓存-->
+    <cache/>
+    <!--缓存引用UserWithPermMapper的namespace。
+    这样当前映射文件和UserWithPermMapper映射文件都是用同一个缓存-->
+    <cache-ref namespace="com.hat.mybatis.mapper.UserWithPermMapper"/>
+    <resultMap id="permsResultMap" type="com.hat.mybatis.bean.Permission">
+    </resultMap>
+    <select id="getPermsByUsername" resultMap="permsResultMap">
+        select * from roles_perms where role = #{role}
+    </select>
+    <update id="updatePerm" >
+        update roles_perms set perm = #{perm} where id = #{p_id}
+    </update>
+</mapper>

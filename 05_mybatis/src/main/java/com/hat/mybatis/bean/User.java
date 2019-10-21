@@ -1,12 +1,15 @@
 package com.hat.mybatis.bean;
 
-public class User {
+import java.io.Serializable;
+import java.util.List;
+
+public class User implements Serializable {
     private Integer id;
     private String username;
     private String password;
     private String role;
     private String userNick;
-
+    private List<Permission> permissions;
 
     public User() {
     }
@@ -60,6 +63,14 @@ public class User {
         this.userNick = nick;
     }
 
+    public List<Permission> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(List<Permission> permissions) {
+        this.permissions = permissions;
+    }
+
     @Override
     public String toString() {
         return "User{" +
@@ -67,7 +78,8 @@ public class User {
                 ", username='" + username + '\'' +
                 ", password='" + password + '\'' +
                 ", role='" + role + '\'' +
-                ", nick='" + userNick + '\'' +
+                ", userNick='" + userNick + '\'' +
+                ", permissions=" + permissions +
                 '}';
     }
 }

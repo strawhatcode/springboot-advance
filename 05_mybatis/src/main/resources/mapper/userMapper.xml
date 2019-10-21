@@ -6,16 +6,18 @@
 <!--namespace：必须，作用一：该命名空间可以把不同的语句区分开来，建议使用全路径名以防出现冲突
                      作用二：与mapper接口进行绑定，把sql语句映射到mapper接口中-->
 <mapper namespace="com.hat.mybatis.mapper.UserMapper">
+    <!--开启二级缓存-->
+    <cache/>
     <!--resultMap属性配置。  id：resultMap的名字，type：实体类的全路径-->
     <resultMap id="userResultMap" type="com.hat.mybatis.bean.User">
-        <!--&lt;!&ndash;这个id属性是数据库的主键&ndash;&gt;-->
-        <!--<id property="id" column="id"/>-->
-        <!--&lt;!&ndash;result 属性是数据库其他字段&ndash;&gt;-->
-        <!--&lt;!&ndash; property: 实体类中的变量名；column：数据库中的字段名&ndash;&gt;-->
-        <!--<result property="username" column="username"/>-->
-        <!--<result property="password" column="password"/>-->
-        <!--<result property="role" column="role"/>-->
-        <!--<result property="nick" column="nick"/>-->
+        <!--这个id属性是数据库的主键-->
+        <id property="id" column="id"/>
+        <!--result 属性是数据库其他字段-->
+        <!-- property: 实体类中的变量名；column：数据库中的字段名-->
+        <result property="username" column="username"/>
+        <result property="password" column="password"/>
+        <result property="role" column="role"/>
+        <result property="nick" column="nick"/>
     </resultMap>
     <!--resultType：结果集的类型，查询结果的数据是什么类型-->
     <!--<select id="getUserByUsername" resultType="User">-->
@@ -26,4 +28,5 @@
     <select id="getUserByUsername" resultMap="userResultMap">
     select * from user where username=#{username}
     </select>
+
 </mapper>
