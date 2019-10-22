@@ -441,7 +441,11 @@ public class Application {
 
   ![](images/6.jpg)
 
-### 1.11 mybatis的缓存
+### 1.11 mapper.xml映射文件的标签讲解
+
+参考官方文档https://mybatis.org/mybatis-3/zh/sqlmap-xml.html
+
+### 1.12 mybatis的缓存
 
 1. **一级缓存**
 
@@ -921,7 +925,7 @@ public class Application {
 
      最后。关于mybatis缓存机制的源码可以看这篇文章 [mybatis缓存机制](https://tech.meituan.com/2018/01/19/mybatis-cache.html)
 
-### 1.12 使用注解方式代替映射文件
+### 1.13 使用注解方式代替映射文件
 
 mybatis提供了@select、@update、@delete、@insert这几种注解，只需要在**mapper接口**中添加这些注解就行，参数就是sql语句。比如：
 
@@ -931,3 +935,126 @@ mybatis提供了@select、@update、@delete、@insert这几种注解，只需要
 ```
 
 不过这种方式只能进行一些简单的sql数据库操作。如果有复杂的sql操作还是需要使用xml映射文件方式来编写。
+
+### 2. 使用mybatis代码生成器mybatis-generator插件
+
+### 2.1 在pom.xml文件中引入mybatis-generator插件
+
+```xml
+    <plugin>
+        <groupId>org.mybatis.generator</groupId>
+        <artifactId>mybatis-generator-maven-plugin</artifactId>
+        <version>1.3.7</version>
+        <!--这里要添加mysql连接的依赖-->
+        <dependencies>
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <!--<scope>runtime</scope>-->
+                <version>8.0.18</version>
+            </dependency>
+        </dependencies>
+    </plugin>
+```
+
+### 2.2 在resource路径下创建generatorConfig.xml来配置生成器属性，这个xml文件名必须是generatorConfig
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+        PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+
+<generatorConfiguration>
+    <!--
+        context：上下文，可配置多个
+            id：（必须）上下文标识，要唯一
+            defaultModelType：（可选）默认模型类型(生成实体类的类型)
+                conditional：（默认）如果表中只有一个字段则不会单独生成一个实体类，而是并入到基本实体类中
+                flat：一个表生成一个实体类
+                hierarchical：主键分一个实体类，BLOB类型(如果有)的字段分一个实体类，其余字段分一个实体类，生成器会自动创建继承关系
+            targetRuntime：（可选）生成代码的运行时环境
+                MyBatis3：（默认）会生成sample
+                MyBatis3Simple：不会生成sample
+                MyBatis3DynamicSql：如果使用此运行环境，那么defaultModelType无论设置什么都是flat，映射器只使用注解方式。
+    -->
+    <context id="mycontext" targetRuntime="MyBatis3Simple" defaultModelType="flat">
+
+        <!--
+            property：数据库分隔符
+                javaFileEncoding：java文件编码
+        -->
+        <property name="javaFileEncoding" value="UTF-8"/>
+        <!--
+            commentGenerator：注释生成器
+                suppressDate：日期注释，false(默认)则生成日期注释，true则不生成日期注释
+                addRemarkComments：数据库表和列的注释，false(默认)则不生成列和表注释，true反之
+                suppressAllComments：所有注释，false(默认)则生成所有注释，true反之
+        -->
+        <commentGenerator>
+            <property name="suppressDate" value="true"/>
+            <property name="addRemarkComments" value="false"/>
+            <property name="suppressAllComments" value="true"/>
+        </commentGenerator>
+
+        <!--jdbc的数据库连接：驱动类、链接地址、用户名、密码-->
+        <jdbcConnection
+                driverClass="com.mysql.cj.jdbc.Driver"
+                connectionURL="jdbc:mysql://127.0.0.1:3306/testshiro?characterEncoding=utf8&amp;serverTimezone=UTC"
+                userId="root"
+                password="123456">
+            <!--<property name="nullCatalogMeansCurrent" value="true"/>-->
+        </jdbcConnection>
+
+        <!-- 非必需，类型处理器，在数据库类型和java类型之间的转换控制,默认false-->
+        <javaTypeResolver>
+            <property name="forceBigDecimals" value="false"/>
+        </javaTypeResolver>
+        
+        <!-- Model模型生成器,用来生成含有主键key的类，记录类 以及查询Example类
+            targetPackage     指定生成的实体类所在的包名
+            targetProject     指定在该项目下所在的路径
+        -->
+        <javaModelGenerator targetPackage="com.hat.mybatis.bean"
+                            targetProject="src/main/java">
+
+            <!-- 是否允许子包，即targetPackage.schemaName.tableName，默认false -->
+            <property name="enableSubPackages" value="false"/>
+            <!-- 是否对model添加 构造函数 ，默认false-->
+            <property name="constructorBased" value="false"/>
+            <!-- 是否对类CHAR类型的列的数据进行trim操作，默认false-->
+            <property name="trimStrings" value="true"/>
+            <!-- 建立的Model对象是否 不可改变  即生成的Model对象不会有 setter方法，只有构造方法，默认false-->
+            <property name="immutable" value="false"/>
+        </javaModelGenerator>
+
+        <!--Mapper映射文件生成所在的目录 为每一个数据库的表生成对应的SqlMap文件 -->
+        <sqlMapGenerator targetPackage="mapper" targetProject="src/main/resources">
+        </sqlMapGenerator>
+
+        <!-- 生成mapper接口的代码
+                type="ANNOTATEDMAPPER",生成Java Model 和基于注解的Mapper对象
+                type="MIXEDMAPPER",生成基于注解的Java Model 和相应的Mapper对象
+                type="XMLMAPPER",生成SQLMap XML文件和独立的Mapper接口
+        -->
+        <javaClientGenerator targetPackage="com.hat.mybatis.mapper"
+                             targetProject="src/main/java" type="XMLMAPPER">
+        </javaClientGenerator>
+
+        <!-- 数据表进行生成操作 tableName:表名，可以使用sql通配符; domainObjectName:对应的实体类名，不设置则按照表名创建 -->
+        <!-- %：所有表；table标签可以选择生成哪些sql语句，详情：http://mybatis.org/generator/configreference/table.html-->
+        <table tableName="user_info" domainObjectName="UserInfo"/>
+    </context>
+
+</generatorConfiguration>
+```
+
+关于`</generatorConfiguration>`更详细的的讲解可以到[官方文档](http://mybatis.org/generator/configreference/xmlconfig.html)查看
+
+### 2.3 使用代码生成器生成实体类、mapper接口、mapper.xml映射文件
+
+![](images/12.jpg)
+
+![](images/13.jpg)
+
+![](images/14.jpg)
