@@ -29,4 +29,28 @@
     select * from user where username=#{username}
     </select>
 
+    <!--插入一条数据，并且可以直接获取自增主键id-->
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
+        insert into user(username,password,role,user_nick)
+        values (#{user.username},#{user.password},#{user.role},#{user.nick})
+    </insert>
+
+    <!--插入多条数据-->
+    <insert id="insertUserList" useGeneratedKeys="true"
+            keyProperty="id">
+        insert into user (username, password, role, user_nick) values
+        <foreach item="item" collection="users" separator=",">
+            (#{item.username}, #{item.password}, #{item.role}, #{item.nick})
+        </foreach>
+    </insert>
+
+    <!--演示使用sql标签片段语句与include引用sql片段语句-->
+    <sql id="selectsql">
+        select * from ${tableName}
+    </sql>
+    <select id="selectUseSql" resultMap="userResultMap">
+        <include refid="selectsql"/>
+        where username=#{username}
+    </select>
+
 </mapper>

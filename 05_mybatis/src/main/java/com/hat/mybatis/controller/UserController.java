@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.annotation.Target;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -27,6 +28,7 @@ public class UserController {
     @Autowired
     UserWithPermService userWithPermService;
 
+    //获取用户信息
     @RequestMapping("/user/{username}")
     @Transactional
     public Object getUser(@PathVariable String username){
@@ -37,6 +39,7 @@ public class UserController {
         return user;
     }
 
+    //获取权限
     @RequestMapping("/user")
     @Transactional
     public Object getUserWithPerms(String username){
@@ -64,6 +67,7 @@ public class UserController {
         return userWithPerms;
     }
 
+    //使用注解方式的sql语句获取User信息
     @RequestMapping("/get")
     @Transactional
     public Object getUser2(String username){
@@ -71,4 +75,37 @@ public class UserController {
         System.out.println(user);
         return user;
     }
+
+    //插入一条数据
+    @RequestMapping("/insert")
+    public int insertUser(String username,String password,String role,String nick){
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(password);
+        user.setRole(role);
+        user.setNick(nick);
+        int res = userService.insertUser(user);
+        System.out.println("插入数据后立马获取主键自增id===="+user.getId());
+        return res;
+    }
+
+    //模拟添加多条数据
+    @RequestMapping("/insertList")
+    public int insertUserList(){
+        List<User> users = new ArrayList<>();
+        for (int i=1;i<=5;i++){
+            User user = new User();
+            user.setUsername("aa"+i);
+            user.setPassword("aa"+i);
+            user.setRole("aa"+i);
+            user.setNick("aa"+i);
+            users.add(user);
+        }
+        int res = userService.insertUserList(users);
+        for (User user : users){
+            System.out.println("【"+user.getUsername()+"】的主键自增id===="+user.getId().toString());
+        }
+        return res;
+    }
+
 }

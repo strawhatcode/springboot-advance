@@ -400,7 +400,7 @@ public class Application {
 
   可以看出来，nick变量的值是null
 
-- 关于resultMap的一个发现，只要我设置了resultMap标签的id属性和type属性，不写子标签的id和result，结果也能正常出来。我把id和result标签注释掉
+- resultMap默认开启自动映射，即自己没手动设置映射，则会执行自动映射，且手动与自动可以同时存在，顺序是先执行自动映射再执行手动映射，只要我设置了resultMap标签的id属性和type属性，不写子标签的id和result，结果也能正常出来。我把id和result标签注释掉，这里就触发了自动映射。
 
   ```xml
   <?xml version="1.0" encoding="UTF-8" ?>
@@ -441,9 +441,179 @@ public class Application {
 
   ![](images/6.jpg)
 
-### 1.11 mapper.xml映射文件的标签讲解
+### 1.11 mapper.xml映射文件的标签描述
 
-参考官方文档https://mybatis.org/mybatis-3/zh/sqlmap-xml.html
+mybatis提供了9种顶级标签，分别是**`<cache>`**、**`<cache-ref>`**、**`<resultMap>`**、**`<parameterMap>`(已弃用)**、**`<sql>`**、**`<insert>`**、**`<update>`**、**`<delete>`**、**`<select>`**。
+
+
+
+#### select标签
+
+`<select>`标签是查询语句。它的属性如下：
+
+| 属性          | 描述                                                         |
+| ------------- | ------------------------------------------------------------ |
+| id            | 命名空间的唯一标识符，与mapper接口命名的接口名一样           |
+| parameterType | 接收参数的类型                                               |
+| resultType    | 结果集的类型，与resultMap只能2选1                            |
+| resultMap     | 结果集的类型（自定义的resultMap才可以使用），与resultType只能2选1 |
+| flushCache    | 清空缓存，当设置为true时，一旦该语句被调用则清空一级和二级缓存，默认false |
+| useCache      | 使用缓存，true时本条语句结果会被二级缓存缓存，默认 select标签为true |
+| timeout       | 超时时间，在抛出异常之前等待多少秒，默认 未设置              |
+| fetchSize     | 尝试使返回查询结果的行数与该设置的值相等，默认 未设置        |
+| statementType | STATEMENT、PERPARED、CALLABLE中选一个，默认PREPARED          |
+| resultSetType | FORWARD_ONLY、SCROLL_SENSITIVE、SCROLL_INSENSITIVE、DEFAULT中选一个，默认DEFAU |
+
+例子：
+
+```xml
+    <select id="getUserByUsername" resultMap="userResultMap">
+    	select * from user where username=#{username}
+    </select>
+```
+
+注意：关于**#{ }**，这个表示参数占位符，括号内的是**getUserByUsername**接口的参数。如果有多个参数则按照**getUserByUsername**接口对应的参数名称来传递。**${ }**也可以传递参数，但是传递的是字符串(String)。一半能用**#{ }**的就用**#{ }**，而且**#{ }**还可以防止sql注入问题，不过如果传递**表名或者字段名**的话就必须使用**${ }**。
+
+例：但username = 'zhangsan' 、tableName = 'user'时
+
+select * from user where username=#{username} 解析为 **select * from user where username = ?**
+
+select * from user where username=${username} 解析为 **select * from user where username = 'zhangsan'**
+
+select * from #{tableName} where username=#{username}解析为 **select * from ? where username = ?** 
+
+select * from ${tableName} where username=#{username}解析为 **select * from 'user' where username = ?**
+
+
+
+#### insert、update和delete标签
+
+增删改这三种标签类似。他们的属性如下：
+
+| 属性             | 描述                                                         |
+| ---------------- | ------------------------------------------------------------ |
+| id               | 命名空间的唯一标识符，与mapper接口命名的接口名一样           |
+| parameterType    | 接收参数的类型                                               |
+| flushCache       | 清空缓存，当设置为true时，一旦该语句被调用则清空一级和二级缓存，默认true |
+| timeout          | 超时时间，在抛出异常之前等待多少秒，默认 未设置              |
+| statementType    | STATEMENT、PERPARED、CALLABLE中选一个，默认PREPARED          |
+| useGeneratedKeys | (仅insert和update可用) 当设置成true时Mybatis会使用jdbc的getGeneratedKeys方法来获取数据库的内部生成的主键，即添加完数据到数据库后可以查询到主键id的值，否则得到的id的null，默认false |
+| keyProperty      | (仅insert和update可用) 实体中与数据库表的主键对应的字段，如id。唯一标记一个属性，MyBatis 会通过 getGeneratedKeys 的返回值或者通过 insert 语句的 selectKey 子元素设置它的键值，默认值：未设置。如果希望得到多个生成的列，也可以是逗号分隔的属性名称列表。 |
+| keyColumn        | 仅对 insert 和 update 有用）数据库的主键字段，通过生成的键值设置表中的列名，这个设置仅在某些数据库（像 PostgreSQL）是必须的，当主键列不是表中的第一列的时候需要设置。如果希望使用多个生成的列，也可以设置为逗号分隔的属性名称列表。 |
+
+例子：
+
+```xml
+<insert id="insertUser">
+  insert into user (username,password,role,user_nick)
+  values (#{username},#{password},#{role},#{user_nick})
+</insert>
+<delete id="delUser">
+  delete from user where username = #{username}
+</delete>
+<update id="updateUser">
+  update user set
+    username = #{username},
+    password = #{password},
+    role = #{role},
+    user_nick = #{user_nick}
+  where id = #{id}
+</update>
+```
+
+- **如果按照上面例子中插入数据，插入玩后直接获取自增的主键id，发现返回的null。如果想在插入数据后直接获取该数据的主键id该怎么做呢？**
+
+  那么**useGeneratedKeys、keyProperty**就派上用场了，只要设置这两个属性就可以在插入数据后直接获取该数据的主键id了。下面是实现的代码
+
+  在mapper接口中增加一个插入数据的接口,这里的@param注解是当有多个参数时使用的，xml映射文件中使用@param(“user”)设置的user参数就可以确保使用哪一个参数
+
+  `int insertUser(@Param("user") User user);`
+
+  serveice类和serviceImpl的简单实现代码就不贴了，跟之前的差不多
+
+  在xml映射文件中添加insert语句，把useGeneratedKeys属性设置为true，keyProperty属性是实体类中与数据库表主键对应的变量，这里是id
+
+  ```xml
+      <!--插入一条数据，并且可以直接获取自增主键id-->
+      <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
+          insert into user(username,password,role,user_nick)
+          values (#{user.username},#{user.password},#{user.role},#{user.nick})
+      </insert>
+  ```
+
+  编写一个controller控制类
+
+  ```java
+      @RequestMapping("/insert")
+      public int insertUser(String username,String password,String role,String nick){
+          User user = new User();
+          user.setUsername(username);
+          user.setPassword(password);
+          user.setRole(role);
+          user.setNick(nick);
+          int res = userService.insertUser(user);
+          System.out.println("插入数据后立马获取主键自增id===="+user.getId());
+          return res;
+      }
+  ```
+
+  结果如下：
+
+  ![](images/15.jpg)
+
+  
+
+- **批量增删改**
+
+  在顶级标签内都有一个`<foreach>`标签。也就是参数传一个list过来，然后使用`<foreach>`标签遍历数据插入到数据库表中
+
+  实现代码：
+
+  ```xml
+  <insert id="insertUserList" useGeneratedKeys="true"
+      keyProperty="id">
+    insert into user (username, password, role, user_nick) values
+    <foreach item="item" collection="list" separator=",">
+      (#{item.username}, #{item.password}, #{item.role}, #{item.nick})
+    </foreach>
+  </insert>
+  ```
+
+#### foreach标签的属性(非顶级)
+
+| 属性       | 描述                                |
+| ---------- | ----------------------------------- |
+| collection | 传递的参数名称，List集合或Set集合等 |
+| item       | 遍历时的每一条数据                  |
+| index      | 当前元素在集合中的位置下标          |
+| separator  | 各个元素之间的间隔符                |
+
+
+
+### sql标签
+
+该标签是sql的代码段，即只写一段sql语句，然后可以供其他语句使用。与`<include>`一起使用，定义为万`<sql>`后使用`<include>`来使用sql片段语句。
+
+| 属性  | 描述                       |
+| ----- | -------------------------- |
+| id    | （sql）sql标签的唯一标识符 |
+| refid | （include）引用sql的id     |
+
+例子：
+
+```xml
+    <sql id="selectsql">
+        select * from ${tableName}
+    </sql>
+    <select id="selectUseSql" resultMap="userResultMap">
+        <include refid="selectsql"/>
+        where username=#{username} 
+    </select>
+```
+
+还有其他标签的描述可以到官方文档查看：
+
+官方文档https://mybatis.org/mybatis-3/zh/sqlmap-xml.html
 
 ### 1.12 mybatis的缓存
 
@@ -513,16 +683,23 @@ public class Application {
 
    mybatis的二级缓存与一级缓存类似，不过二级缓存的范围是整个命名空间（namespace），且二级缓存的可以使用第三方的缓存来实现。当开启二级缓存后数据库操作顺序为：**二级缓存——>一级缓存——>数据库**
 
-   开启二级缓存只需要在mapper.xml映射文件中添加 `<cache/>`标签即可。
+   开启二级缓存只需要在mapper.xml映射文件中添加 `<cache/>`标签即可。二级缓存有4种清除策略，可以设置**eviction**属性来使用不同的清除策略，策略描述如下：
 
-   **注意：开启二级缓存需要实体类User实现序列化**
-
+   | 策略 | 描述                                                     |
+| ---- | -------------------------------------------------------- |
+   | LRU  | 最近最少使用：移除最长时间不被使用的对象。（默认｝       |
+| FIFO | 先进先出：按对象进入缓存的顺序来移除它们。               |
+   | SOFT | 软引用：基于垃圾回收器状态和软引用规则移除对象。         |
+| WEAK | 弱引用：更积极地基于垃圾收集器状态和弱引用规则移除对象。 |
+   
+**注意：开启二级缓存需要实体类User实现序列化**
+   
    **实体类User实现序列化：**
-
+   
    `public class User implements Serializable{`
-
+   
    **在mapper.xml映射文件开启二级缓存：**
-
+   
    ```xml
    <?xml version="1.0" encoding="UTF-8" ?>
    
@@ -550,28 +727,28 @@ public class Application {
            <!--select * from user where username=#{username}-->
        <!--</select>-->
    
-       <!--如果使用了resultMap的话，就需要把resultType改成resultMap-->
+    <!--如果使用了resultMap的话，就需要把resultType改成resultMap-->
        <select id="getUserByUsername" resultMap="userResultMap">
-       select * from user where username=#{username}
+    select * from user where username=#{username}
        </select>
-   </mapper>
+</mapper>
    
-   ```
-
-   **启动项目测试结果如下：**
-
-   ![](images/9.jpg)
-
-   > **这里我发送了两次请求，黄色框中是创建了两个sqlSession，这里只查询了一次数据。**
-
+```
+   
+**启动项目测试结果如下：**
+   
+![](images/9.jpg)
+   
+> **这里我发送了两次请求，黄色框中是创建了两个sqlSession，这里只查询了一次数据。**
    
 
+   
    二级缓存也存在一些失效的时候，比如在多表查询时，改变了表中的数据后，再次查询结果是第一次查询时的结果，也就是读取了缓存中的脏数据。因此可以使用`<cache-ref>`标签关联两个namespace来解决这个问题。
-
+   
    这里创建一套使用多表内连接查询的例子：
-
+   
    - 创建UserWithPerms实体类
-
+   
      ```java
      package com.hat.mybatis.bean;
      
@@ -645,40 +822,40 @@ public class Application {
                      ", username='" + username + '\'' +
                      ", password='" + password + '\'' +
                      ", userNick='" + userNick + '\'' +
-                     ", role='" + role + '\'' +
+                  ", role='" + role + '\'' +
                      ", perm='" + perm + '\'' +
-                     '}';
+                  '}';
          }
      }
      
      ```
-
+   
    - 创建UserWithPermMapper接口类
-
+   
      ```java
      package com.hat.mybatis.mapper;
      
-     import com.hat.mybatis.bean.UserWithPerms;
+  import com.hat.mybatis.bean.UserWithPerms;
      
-     public interface UserWithPermMapper {
+  public interface UserWithPermMapper {
          UserWithPerms getUserWithPerm(String username);
      }
      
      ```
-
+   
    - 创建UserWithPermService和UserWithPermServiceImpl实现类
-
+   
      ```java
      package com.hat.mybatis.service;
      
-     import com.hat.mybatis.bean.UserWithPerms;
+  import com.hat.mybatis.bean.UserWithPerms;
      
      public interface UserWithPermService {
          UserWithPerms getUserWithPerm(String username);
      }
      
      ```
-
+   
      ```java
      package com.hat.mybatis.service.impl;
      
@@ -692,16 +869,16 @@ public class Application {
      public class UserWithPermServiceImpl implements UserWithPermService {
          @Autowired
          UserWithPermMapper userWithPermMapper;
-         @Override
+      @Override
          public UserWithPerms getUserWithPerm(String username) {
-             return userWithPermMapper.getUserWithPerm(username);
+          return userWithPermMapper.getUserWithPerm(username);
          }
      }
      
      ```
-
+   
    - 创建UserWithPermMapper.xml映射文件
-
+   
      ```java
      <?xml version="1.0" encoding="UTF-8" ?>
      
@@ -713,16 +890,16 @@ public class Application {
          <cache/>
          <!--设置resultMap-->
          <resultMap id="UWPResultMap" type="com.hat.mybatis.bean.UserWithPerms"></resultMap>
-         <!--两表使用内连接查询-->
+      <!--两表使用内连接查询-->
          <select id="getUserWithPerm" resultMap="UWPResultMap">
-             SELECT * FROM user inner join roles_perms on user.role = roles_perms.role
+          SELECT * FROM user inner join roles_perms on user.role = roles_perms.role
              where user.username = #{username}
          </select>
      </mapper>
      ```
-
+   
    - 创建Permission实体类（下面修改权限时用的）
-
+   
      ```java
      package com.hat.mybatis.bean;
      
@@ -772,16 +949,16 @@ public class Application {
          public String toString() {
              return "Permission{" +
                      "id=" + id +
-                     ", role='" + role + '\'' +
+                  ", role='" + role + '\'' +
                      ", perm='" + perm + '\'' +
-                     '}';
+                  '}';
          }
      }
      
      ```
-
+   
    - 创建PermsMapper接口
-
+   
      ```java
      package com.hat.mybatis.mapper;
      
@@ -789,28 +966,28 @@ public class Application {
      
      import java.util.List;
      
-     public interface PermsMapper {
+  public interface PermsMapper {
      
-         //根据p_id修改权限
+      //根据p_id修改权限
          Integer updatePerm(int p_id, String perm);
      }
      
      ```
-
+   
    - 创建PermsService和PermsServiceImpl实现类
-
+   
      ```java
      package com.hat.mybatis.service;
      
      import com.hat.mybatis.bean.Permission;
-     
+  
      import java.util.List;
      
      public interface PermsService {
          Integer updatePerm(int p_id,String perm);
      }
      ```
-
+   
      ```java
      package com.hat.mybatis.service.impl;
      
@@ -827,16 +1004,16 @@ public class Application {
          @Autowired
          PermsMapper permsMapper;
          //这里第一个参数是权限表中的id，perm是修改后的权限
-         @Override
+      @Override
          public Integer updatePerm(int p_id,String perm) {
-             return permsMapper.updatePerm(p_id,perm);
+          return permsMapper.updatePerm(p_id,perm);
          }
      }
      
      ```
-
+   
    - 创建PermsMapper映射文件
-
+   
      ```xml
      <?xml version="1.0" encoding="UTF-8" ?>
      
@@ -847,16 +1024,16 @@ public class Application {
      <mapper namespace="com.hat.mybatis.mapper.PermsMapper">
          <!--开启二级缓存-->
          <cache/>
-         <resultMap id="permsResultMap" type="com.hat.mybatis.bean.Permission">
+      <resultMap id="permsResultMap" type="com.hat.mybatis.bean.Permission">
          </resultMap>
-         <update id="updatePerm" >
+      <update id="updatePerm" >
              update roles_perms set perm = #{perm} where id = #{p_id}
          </update>
      </mapper>
      ```
-
+   
    - 继续在userController类中添加路由
-
+   
      ```java
      	//修改权限的api
          @RequestMapping("/update/perm")
@@ -867,28 +1044,28 @@ public class Application {
          }
      	//多表查询的api
          @RequestMapping("/getuser")
-         @Transactional
+      @Transactional
          public Object getUserPerms(String username){
-             UserWithPerms userWithPerms = userWithPermService.getUserWithPerm(username);
+          UserWithPerms userWithPerms = userWithPermService.getUserWithPerm(username);
              System.out.println(userWithPerms);
-             return userWithPerms;
+          return userWithPerms;
          }
-     ```
-
-   - 查询——>修改权限——>查询结果如下：
-
+  ```
+   
+- 查询——>修改权限——>查询结果如下：
+   
+  
+   
+  ![](images/10.jpg)
+   
+  > **发现使用多表查询时，二级缓存也失效了。修改数据后再次查询的结果是修改数据前缓存的数据。**
+   
      
-
-     ![](images/10.jpg)
-
-     > **发现使用多表查询时，二级缓存也失效了。修改数据后再次查询的结果是修改数据前缓存的数据。**
-
-     
-
+   
    - 在PermsMapper.xml映射文件中添加`<cache-ref>`,这样两个映射文件对应的SQL操作都使用的是同一块缓存了
-
+   
      
-
+   
      ```xml
      <?xml version="1.0" encoding="UTF-8" ?>
      
@@ -907,22 +1084,22 @@ public class Application {
          <resultMap id="permsResultMap" type="com.hat.mybatis.bean.Permission">
          </resultMap>
          <select id="getPermsByUsername" resultMap="permsResultMap">
-             select * from roles_perms where role = #{role}
+          select * from roles_perms where role = #{role}
          </select>
-         <update id="updatePerm" >
+      <update id="updatePerm" >
              update roles_perms set perm = #{perm} where id = #{p_id}
-         </update>
+      </update>
      </mapper>
      ```
-
-   - 再次测试结果如下：
-
+   
+- 再次测试结果如下：
+   
      ![](images/11.jpg)
-
+   
      > **在结果图中可以看出，修改数据后再查询时，会从数据库中查数据，且数据是修改后的数据。这样就可以解决多表查询时二级缓存失效的问题。**
      >
      > **注意：`<cache-ref>`是在修改数据的那个映射文件中添加的，不可以反过来。**
-
+   
      最后。关于mybatis缓存机制的源码可以看这篇文章 [mybatis缓存机制](https://tech.meituan.com/2018/01/19/mybatis-cache.html)
 
 ### 1.13 使用注解方式代替映射文件
@@ -1058,3 +1235,6 @@ mybatis提供了@select、@update、@delete、@insert这几种注解，只需要
 ![](images/13.jpg)
 
 ![](images/14.jpg)
+
+## springboot整合MyBatis-Plus
+

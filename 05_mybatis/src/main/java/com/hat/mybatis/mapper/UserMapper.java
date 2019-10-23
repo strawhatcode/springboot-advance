@@ -2,6 +2,7 @@ package com.hat.mybatis.mapper;
 
 import com.hat.mybatis.bean.User;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -16,6 +17,10 @@ public interface UserMapper {
 
     @Select("select * from user where username = #{username}")
     User getUser(String username);
+
+    int insertUser(@Param("user") User user);
+
+    int insertUserList(List<User> users);
 }
 
 

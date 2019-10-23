@@ -8,4 +8,6 @@ public interface UserService {
     User getUserByUsername(String username);
     List<User> getUserWithPerms(String role);
     User getUser(String username);
+    int insertUser(User user);
+    int insertUserList(List<User> users);
 }
