@@ -53,4 +53,62 @@
         where username=#{username}
     </select>
 
+    <!--演示if和where语句-->
+    <!--<select id="findByIf" resultMap="userResultMap">-->
+        <!--select * from user-->
+        <!--<where>-->
+            <!--<if test="username != null">-->
+                <!--and username = #{username}-->
+            <!--</if>-->
+            <!--<if test="role != null">-->
+                <!--and role = #{role}-->
+            <!--</if>-->
+        <!--</where>-->
+    <!--</select>-->
+
+    <!--演示trim语句-->
+    <select id="findByIf" resultMap="userResultMap">
+        select * from user
+        <!--把where语句前置到if语句的前面，如果后面有and|or则删掉-->
+        <trim prefix="where" suffixOverrides="and | or">
+            <if test="username != null">
+                 username = #{username} and
+            </if>
+            <if test="role != null">
+                role = #{role} and
+            </if>
+        </trim>
+        <!--把desc语句后置到 order by id 后面，如果前面有and|or则删掉-->
+        <trim suffix="desc" prefixOverrides="and | or">
+            order by id
+        </trim>
+    </select>
+
+    <!--演示choose语句-->
+    <select id="findByChoose" resultMap="userResultMap">
+        select * from user
+        <choose>
+            <when test="id != null">
+                where id = #{id}
+            </when>
+            <when test="username != null">
+                where username = #{username}
+            </when>
+            <otherwise>
+
+            </otherwise>
+        </choose>
+    </select>
+
+    <!--演示set-->
+    <update id="updateBySet" useGeneratedKeys="true" keyProperty="id">
+        update user
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="password != null">password = #{password},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="userNick != null">user_nick = #{userNick}</if>
+        </set>
+        where id = #{id}
+    </update>
 </mapper>

@@ -1,22 +1,23 @@
 package com.hat.mybatis.controller;
 
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import com.hat.mybatis.bean.Permission;
 import com.hat.mybatis.bean.User;
 import com.hat.mybatis.bean.UserWithPerms;
-import com.hat.mybatis.mapper.PermsMapper;
 import com.hat.mybatis.service.PermsService;
 import com.hat.mybatis.service.UserService;
 import com.hat.mybatis.service.UserWithPermService;
-import com.sun.corba.se.spi.ior.ObjectKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.lang.annotation.Target;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.Condition;
 
 @RestController
 public class UserController {
@@ -106,6 +107,49 @@ public class UserController {
             System.out.println("【"+user.getUsername()+"】的主键自增id===="+user.getId().toString());
         }
         return res;
+    }
+
+    @RequestMapping("/findbychoose")
+    public Object findByChoose(@RequestParam(defaultValue = "1") int page,
+                               @RequestParam(required = false) Integer id,
+                               @RequestParam(required = false) String username){
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        //设置第几页和一页多少条数据，这一行必须在查询语句的上方
+        PageHelper.startPage(page,3);
+        //查询
+        List<User> users = userService.findByChoose(user);
+        //把查询的结果集给PageInfo处理
+        PageInfo<User> pageInfo = new PageInfo<>(users);
+        return pageInfo;
+    }
+
+    @RequestMapping("/findbyif")
+    public Object findByIf(@RequestParam(required = false) String username,
+                           @RequestParam(required = false) String role){
+        User user = new User();
+        user.setUsername(username);
+        user.setRole(role);
+        List<User> users = userService.findByIf(user);
+        return users;
+    }
+
+    @RequestMapping("/updatebyset")
+    public Object updateBySet(Integer id,
+                              @RequestParam(required = false) String username,
+                              @RequestParam(required = false) String password,
+                              @RequestParam(required = false) String nick,
+                              @RequestParam(required = false) String role){
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        user.setPassword(password);
+        user.setRole(role);
+        user.setNick(nick);
+        int res = userService.updateBySet(user);
+        System.out.println("update结果:"+res);
+        return user;
     }
 
 }

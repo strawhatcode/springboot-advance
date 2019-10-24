@@ -21,6 +21,11 @@ public interface UserMapper {
     int insertUser(@Param("user") User user);
 
     int insertUserList(List<User> users);
+
+    List<User> findByChoose(User user);
+    List<User> findByIf(User user);
+
+    int updateBySet(User user);
 }
 
 

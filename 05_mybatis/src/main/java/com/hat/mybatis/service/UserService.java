@@ -10,4 +10,10 @@ public interface UserService {
     User getUser(String username);
     int insertUser(User user);
     int insertUserList(List<User> users);
+
+    List<User> findByChoose(User user);
+    List<User> findByIf(User user);
+
+    int updateBySet(User user);
+
 }

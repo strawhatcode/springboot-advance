@@ -37,4 +37,19 @@ public class UserServiceImpl implements UserService {
     public int insertUserList(List<User> users) {
         return userMapper.insertUserList(users);
     }
+
+    @Override
+    public List<User> findByChoose(User user) {
+        return userMapper.findByChoose(user);
+    }
+
+    @Override
+    public List<User> findByIf(User user) {
+        return userMapper.findByIf(user);
+    }
+
+    @Override
+    public int updateBySet(User user) {
+        return userMapper.updateBySet(user);
+    }
 }
