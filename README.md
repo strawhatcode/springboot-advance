@@ -7,3 +7,5 @@
 ### [redis学习](03_redis/redis.md)
 ## 四、shiro
 ### [shiro学习](04_shiro/shiro.md)
+## 五、mybatis
+### [mybatis学习](05_mybatis/mybatis.md)
