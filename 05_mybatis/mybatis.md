@@ -590,7 +590,7 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
 
 
 
-### sql标签
+#### sql标签
 
 该标签是sql的代码段，即只写一段sql语句，然后可以供其他语句使用。与`<include>`一起使用，定义为万`<sql>`后使用`<include>`来使用sql片段语句。
 
@@ -615,69 +615,290 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
 
 官方文档https://mybatis.org/mybatis-3/zh/sqlmap-xml.html
 
-### 1.12 mybatis的缓存
+### 1.12 动态sql
 
-1. **一级缓存**
+mybatis提供了几钟条件语句，分别是if、choose（when,otherwise）、trim(where、set)
 
-   mybatis默认开启了一级缓存，可以在配置文件中设置**local-cache-scope**属性，该属性有两个值--**SESSION**(默认)和**STATEMENT**。该两个值只是缓存的范围不同
+#### **if**
 
-   > - **SESSION：**在一个同一个会话（sqlSession）中的语句会被缓存。
-   > - **STATEMENT：**只会缓存当前这个STATEMENT的语句，即只会缓存当前执行的一条sql操作语句
+if语句可以用来判断某个字段符合某个条件才使用if语句里的sql代码。
 
-   **注意：**在springboot项目中，mybatis的一级缓存虽然是开启的，但是是失效的，如果想让一级缓存工作，需要给该服务开启事务，在rest方法上添加@Transactional注解
+示例：
 
-   当不开启事务时：
+```xml
+    <select id="findByIf" resultMap="userResultMap">
+        select * from user where username = #{username}
+        <if test="role != null">
+            and role = #{role}
+        </if>
+    </select>
+```
 
-   ```java
-       @RequestMapping("/user/{username}")
-   //    @Transactional
-       public Object getUser(@PathVariable String username){
-           //根据用户名查询该用户的信息并返回给前端
-           System.out.println(userService.getUserByUsername(username)+"[1111111]");
-           System.out.println(userService.getUserByUsername(username)+"[2222222]");
-           User user = userService.getUserByUsername(username);
-           System.out.println(user+"[3333333]");
-           return user;
-       }
-   ```
+当参数有role时，if语句的test属性则为true，意味着if语句里的role = #{role}也会拼接到sql语句中，拼接后的sql语句为：
 
-   结果如下：
+`select * from user where username = #{username} and role = #{role}`
 
-   ![](images/7.jpg)
+如果参数中没有role的话。sql语句为：
 
-   >**可以看出来一级缓存是失效的，且每个sqlSession都是不一样的。**
+`select * from user where username = #{username}`
 
-   
+#### **choose，when，otherwise**
 
-   当开启了事务：
+这3个一般是一起使用，相当于 if---elif---else，即只有一个满足条件的语句会被使用到
 
-   ```java
-       @RequestMapping("/user/{username}")
-       @Transactional
-       public Object getUser(@PathVariable String username){
-           //根据用户名查询该用户的信息并返回给前端
-           System.out.println(userService.getUserByUsername(username)+"[1111111]");
-           System.out.println(userService.getUserByUsername(username)+"[2222222]");
-           User user = userService.getUserByUsername(username);
-           System.out.println(user+"[3333333]");
-           return user;
-       }
-   ```
+示例：
 
-   结果如下：
+```xml
+    <select id="findByChoose" resultMap="userResultMap">
+        select * from user
+        <choose>
+            <when test="id != null">
+                where id = #{id}
+            </when>
+            <when test="username != null">
+                where username = #{username}
+            </when>
+            <otherwise>
 
-   ![](images/8.jpg)
+            </otherwise>
+        </choose>
+    </select>
+```
 
-   > 可以看出只运行了一次数据库查询，且sqlSession都是一样的。这样就成功让一级缓存生效了
+如果只传了id参数，localhost:8080/findbychoose?id=1
 
-   一级缓存的补充。
+则sql语句为：
 
-   
+![](images/16.jpg)
 
-   - 比如在**查询--修改--查询**这样的情景中（同一个sqlSession），首先进行了查询，那么sqlSession会缓存了该数据，然后我们修改这这项数据，最后再查询。那么第2次的查询会重新进行数据库查询。
-   - 查询（sqlSession1）-- 修改（sqlSession2）-- 查询（sqlSession1）-- 查询（sqlSession2）这样的一个情景中，第二个查询（sqlSession1）的结果是第一个查询（sqlSession1）中缓存的数据，就是**修改之前**的数据；第四个查询（sqlSession2）是**修改之后**的数据，且该数据是进行数据库查询的。
+如果传了username参数，localhost:8080/findbychoose?username=lisi
 
-   **上面的两个补充中可以更好的佐证一级缓存是在sqlSession内部缓存的。**
+则sql语句为：
+
+![](images/17.jpg)
+
+如果什么参数都不传，localhost:8080/findbychoose
+
+则sql语句为：
+
+![](images/18.jpg)
+
+如果即传了id参数又传了username参数，localhost:8080/findbychoose?username=lisi&id=1，而我数据库中lisi的id是2。id为1的是zhangsan
+
+sql语句为：
+
+![](images/19.jpg)
+
+可见id参数优先级更高，因此choose条件是从上往下依次判断的，一旦命中就算结束，下面其他的when语句都不会再判断
+
+#### **trim， where，set**
+
+这3个语句是解决where语句多出的一些sql连接词，如and或or等这些，这种情况一般在if语句中出现的多。
+
+**where：**
+
+场景：
+
+```xml
+    <select id="findByIf" resultMap="userResultMap">
+        select * from user where
+        <if test="username != null">
+            and username = #{username}
+        </if>
+        <if test="role != null">
+            and role = #{role}
+        </if>
+    </select>
+```
+
+该查询语句，如果username参数命中，则sql语句变成 
+
+`select * from user where and username = #{username}`   这sql语句明显是不对的。因此where就是用来解决这种在多出来的and或or等连接符
+
+示例：
+
+```xml
+    <select id="findByIf" resultMap="userResultMap">
+        select * from user
+        <where>
+            <if test="username != null">
+                and username = #{username}
+            </if>
+            <if test="role != null">
+                and role = #{role}
+            </if>
+        </where>
+    </select>
+```
+
+where语句会把拼接sql的第一个if语句中前面的and去掉，当localhost:8080/findbyif?username=zhangsan时
+
+sql语句为：
+
+![](images/20.jpg)
+
+同理localhost:8080/findbyif?role=user时是一样的。
+
+当两个参数都满足时localhost:8080/findbyif?username=zhangsan&role=aaa
+
+sql语句为：
+
+![](images/21.jpg)
+
+所以where语句会把第一个条件前面的and去掉，后面条件的and会保留
+
+**trim**
+
+如果把and放到了语句的后面where语句就会不起作用报出异常了。因此要使用trim来解决这个问题。
+
+trim有几个属性：
+
+| 属性            | 描述                                                         |
+| --------------- | ------------------------------------------------------------ |
+| prefix          | sql语句前置，即在trim标签内的语句前面插入的sql语句，如where等sql语句 |
+| prefixOverrides | 要删除前面的and或or等，可以写多个，用 \| 分开，即或。如and \| or |
+| suffix          | sql语句后置，即在trim标签内的语句后面插入的sql语句如desc等sql语句 |
+| suffixOverrides | 要删除后面的and或or等，可以写多个，用 \| 分开，如and \| or   |
+
+示例：
+
+```xml
+    <select id="findByIf" resultMap="userResultMap">
+        select * from user
+        <!--把where语句前置到if语句的前面，如果后面有and|or则删掉-->
+        <trim prefix="where" suffixOverrides="and | or">
+            <if test="username != null">
+                 username = #{username} and
+            </if>
+            <if test="role != null">
+                role = #{role} and
+            </if>
+        </trim>
+        <!--把desc语句后置到 order by id 后面，如果前面有and|or则删掉-->
+        <trim suffix="desc" prefixOverrides="and | or">
+            order by id
+        </trim>
+    </select>
+```
+
+请求localhost:8080/findbyif?username=wangwu&role=user后的sql语句为：
+
+![](images\22.jpg)
+
+
+
+**set**
+
+set语句与where语句类似，只不过set是在update时使用的。
+
+场景：
+
+```xml
+<update id="updateBySet" useGeneratedKeys="true" keyProperty="id">
+        update user
+        set
+            <if test="username != null">username = #{username},</if>
+            <if test="password != null">password = #{password},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="userNick != null">user_nick = #{userNick}</if>
+        where id = #{id}
+    </update>
+```
+
+如果我只修改username一个值，localhost:8080/updatebyset?username=aaaaaaa&id=15
+
+则sql语句是：
+
+`update user set username = #{username}, where id = #{id}`  这条sql语句明显不对。
+
+如果使用set标签代替set
+
+示例：
+
+```xml
+    <update id="updateBySet" useGeneratedKeys="true" keyProperty="id">
+        update user
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="password != null">password = #{password},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="userNick != null">user_nick = #{userNick}</if>
+        </set>
+        where id = #{id}
+    </update>
+```
+
+sql语句为：
+
+![](images/23.jpg)
+
+因此，set标签是跟where标签类似，set标签会删除最后面多出的逗号。如果有些复杂的set标签也无法解决的，我们也可以用trim来删除那些多余的东西。用法也是跟查询一样的。
+
+还想了解其他的一些动态sql语句标签，可以看官方文档https://mybatis.org/mybatis-3/zh/dynamic-sql.html
+
+### 1.13 mybatis的缓存
+
+**一级缓存**
+
+mybatis默认开启了一级缓存，可以在配置文件中设置**local-cache-scope**属性，该属性有两个值--**SESSION**(默认)和**STATEMENT**。该两个值只是缓存的范围不同
+
+> - **SESSION：**在一个同一个会话（sqlSession）中的语句会被缓存。
+> - **STATEMENT：**只会缓存当前这个STATEMENT的语句，即只会缓存当前执行的一条sql操作语句
+
+**注意：**在springboot项目中，mybatis的一级缓存虽然是开启的，但是是失效的，如果想让一级缓存工作，需要给该服务开启事务，在rest方法上添加@Transactional注解
+
+当不开启事务时：
+
+```java
+    @RequestMapping("/user/{username}")
+//    @Transactional
+    public Object getUser(@PathVariable String username){
+        //根据用户名查询该用户的信息并返回给前端
+        System.out.println(userService.getUserByUsername(username)+"[1111111]");
+        System.out.println(userService.getUserByUsername(username)+"[2222222]");
+        User user = userService.getUserByUsername(username);
+        System.out.println(user+"[3333333]");
+        return user;
+    }
+```
+
+结果如下：
+
+![](images/7.jpg)
+
+>**可以看出来一级缓存是失效的，且每个sqlSession都是不一样的。**
+
+
+
+当开启了事务：
+
+```java
+    @RequestMapping("/user/{username}")
+    @Transactional
+    public Object getUser(@PathVariable String username){
+        //根据用户名查询该用户的信息并返回给前端
+        System.out.println(userService.getUserByUsername(username)+"[1111111]");
+        System.out.println(userService.getUserByUsername(username)+"[2222222]");
+        User user = userService.getUserByUsername(username);
+        System.out.println(user+"[3333333]");
+        return user;
+    }
+```
+
+结果如下：
+
+![](images/8.jpg)
+
+> 可以看出只运行了一次数据库查询，且sqlSession都是一样的。这样就成功让一级缓存生效了
+
+一级缓存的补充。
+
+
+
+- 比如在**查询--修改--查询**这样的情景中（同一个sqlSession），首先进行了查询，那么sqlSession会缓存了该数据，然后我们修改这这项数据，最后再查询。那么第2次的查询会重新进行数据库查询。
+- 查询（sqlSession1）-- 修改（sqlSession2）-- 查询（sqlSession1）-- 查询（sqlSession2）这样的一个情景中，第二个查询（sqlSession1）的结果是第一个查询（sqlSession1）中缓存的数据，就是**修改之前**的数据；第四个查询（sqlSession2）是**修改之后**的数据，且该数据是进行数据库查询的。
+
+**上面的两个补充中可以更好的佐证一级缓存是在sqlSession内部缓存的。**
 
 2. **二级缓存**
 
@@ -692,14 +913,15 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
    | SOFT | 软引用：基于垃圾回收器状态和软引用规则移除对象。         |
 | WEAK | 弱引用：更积极地基于垃圾收集器状态和弱引用规则移除对象。 |
    
+
 **注意：开启二级缓存需要实体类User实现序列化**
-   
+
    **实体类User实现序列化：**
-   
+
    `public class User implements Serializable{`
-   
+
    **在mapper.xml映射文件开启二级缓存：**
-   
+
    ```xml
    <?xml version="1.0" encoding="UTF-8" ?>
    
@@ -733,20 +955,20 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
        </select>
 </mapper>
    
-```
-   
-**启动项目测试结果如下：**
-   
-![](images/9.jpg)
-   
-> **这里我发送了两次请求，黄色框中是创建了两个sqlSession，这里只查询了一次数据。**
-   
+   ```
 
-   
+**启动项目测试结果如下：**
+
+![](images/9.jpg)
+
+> **这里我发送了两次请求，黄色框中是创建了两个sqlSession，这里只查询了一次数据。**
+
+
+
    二级缓存也存在一些失效的时候，比如在多表查询时，改变了表中的数据后，再次查询结果是第一次查询时的结果，也就是读取了缓存中的脏数据。因此可以使用`<cache-ref>`标签关联两个namespace来解决这个问题。
-   
+
    这里创建一套使用多表内连接查询的例子：
-   
+
    - 创建UserWithPerms实体类
    
      ```java
@@ -835,6 +1057,8 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
      ```java
      package com.hat.mybatis.mapper;
      
+     ```
+
   import com.hat.mybatis.bean.UserWithPerms;
      
   public interface UserWithPermMapper {
@@ -842,12 +1066,14 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
      }
      
      ```
-   
+
    - 创建UserWithPermService和UserWithPermServiceImpl实现类
    
      ```java
      package com.hat.mybatis.service;
      
+     ```
+
   import com.hat.mybatis.bean.UserWithPerms;
      
      public interface UserWithPermService {
@@ -855,7 +1081,7 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
      }
      
      ```
-   
+       
      ```java
      package com.hat.mybatis.service.impl;
      
@@ -876,7 +1102,7 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
      }
      
      ```
-   
+
    - 创建UserWithPermMapper.xml映射文件
    
      ```java
@@ -966,6 +1192,8 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
      
      import java.util.List;
      
+     ```
+
   public interface PermsMapper {
      
       //根据p_id修改权限
@@ -973,14 +1201,14 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
      }
      
      ```
-   
+
    - 创建PermsService和PermsServiceImpl实现类
    
      ```java
      package com.hat.mybatis.service;
      
      import com.hat.mybatis.bean.Permission;
-  
+        
      import java.util.List;
      
      public interface PermsService {
@@ -1050,6 +1278,7 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
              System.out.println(userWithPerms);
           return userWithPerms;
          }
+     ```
   ```
    
 - 查询——>修改权限——>查询结果如下：
@@ -1090,10 +1319,10 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
              update roles_perms set perm = #{perm} where id = #{p_id}
       </update>
      </mapper>
-     ```
-   
+  ```
+
 - 再次测试结果如下：
-   
+  
      ![](images/11.jpg)
    
      > **在结果图中可以看出，修改数据后再查询时，会从数据库中查数据，且数据是修改后的数据。这样就可以解决多表查询时二级缓存失效的问题。**
@@ -1102,7 +1331,7 @@ select * from ${tableName} where username=#{username}解析为 **select * from '
    
      最后。关于mybatis缓存机制的源码可以看这篇文章 [mybatis缓存机制](https://tech.meituan.com/2018/01/19/mybatis-cache.html)
 
-### 1.13 使用注解方式代替映射文件
+### 1.14 使用注解方式代替映射文件
 
 mybatis提供了@select、@update、@delete、@insert这几种注解，只需要在**mapper接口**中添加这些注解就行，参数就是sql语句。比如：
 
@@ -1236,5 +1465,102 @@ mybatis提供了@select、@update、@delete、@insert这几种注解，只需要
 
 ![](images/14.jpg)
 
-## springboot整合MyBatis-Plus
+### 3 使用PageHelper实现分页功能
+
+### 3.1  引入pagehelper依赖
+
+```xml
+        <dependency>
+            <groupId>com.github.pagehelper</groupId>
+            <artifactId>pagehelper-spring-boot-starter</artifactId>
+            <version>1.2.12</version>
+        </dependency>
+```
+
+### 3.2 使用分页
+
+我直接修改localhost:8080/findbychoose这个查询，直接在controller类中实现即可
+
+```java
+    @RequestMapping("/findbychoose")
+    public Object findByChoose(@RequestParam(defaultValue = "1") int page,
+                               @RequestParam(required = false) Integer id,
+                               @RequestParam(required = false) String username){
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        //设置第几页和一页多少条数据，这一行必须在查询语句的上方
+        PageHelper.startPage(page,3);
+        //查询
+        List<User> users = userService.findByChoose(user);
+        //把查询的结果集给PageInfo处理
+        PageInfo<User> pageInfo = new PageInfo<>(users);
+        return pageInfo;
+    }
+```
+
+### 3.2 分页结果
+
+请求localhost:8080/findbychoose 。因为我把page参数设置了默认值1，意味着分页查询第1页的数据。
+
+执行的sql语句如下：
+
+![](images/24.jpg)
+
+而pageInfo封装的内容如下：
+
+```json
+{
+    "total": 11,   //总数据条数
+    "list": [  //当前页的数据
+        {
+            "id": 1,
+            "username": "zhangsan",
+            "password": "00b3187384f2708025074f28764a4a30",
+            "role": "user",
+            "permissions": null,
+            "nick": "小张"
+        },
+        {
+            "id": 2,
+            "username": "lisi",
+            "password": "123456",
+            "role": "manager",
+            "permissions": null,
+            "nick": "小李"
+        },
+        {
+            "id": 8,
+            "username": "wangwu",
+            "password": "123456",
+            "role": "user",
+            "permissions": null,
+            "nick": "小王"
+        }
+    ],
+    "pageNum": 1,   //第几页
+    "pageSize": 3,  //每页显示的数据个数
+    "size": 3,      //长度
+    "startRow": 1,  //从第几行开始
+    "endRow": 3,    //第几行结束
+    "pages": 4,     //总页数
+    "prePage": 0,   //前一页是第几页
+    "nextPage": 2,  //后一页是第几页
+    "isFirstPage": true,  //是否第一页
+    "isLastPage": false,  //是否最后一页
+    "hasPreviousPage": false,  //有没有前一页
+    "hasNextPage": true,    //有没有后一页
+    "navigatePages": 8,    //导航页码数
+    "navigatepageNums": [  //所有导航页码
+        1,
+        2,
+        3,
+        4
+    ],
+    "navigateFirstPage": 1, //导航条上的第1页
+    "navigateLastPage": 4   //导航条上的最后一页
+}
+```
+
+使用PageHelper实现简单的分页查询就完成了。
 
