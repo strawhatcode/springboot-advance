@@ -4,6 +4,8 @@
 ## 二、rabbitmq
 ### [rabbitmq学习](02_rabbitmq/rabbitmq.md)
 ## 三、redis
-### [redis学习](03_redis/redis.md)
+### [redis学习](03_redis/Redis.md)
 ## 四、shiro
 ### [shiro学习](04_shiro/shiro.md)
+## 五、mybatis
+### [mybatis学习](05_mybatis/mybatis.md)
