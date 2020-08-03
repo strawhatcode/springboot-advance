@@ -1,0 +1,33 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:8848,127.0.0.1:8849   # nacos配置中心的地址，集群用逗号（,）分开
+        # 配置文件的文件类型（与自己在配置中心起的dataId后的扩展名一致，
+        # 比如test-config.yml，那就yml；如test-config.yaml，那就yaml。默认是properties）
+        file-extension: yml
+        name: test-config     # DataId  (不填该属性时默认为  spring.application.name 的值)
+        group: TEST_GROUP      # Group组名（默认是 DEFAULT_GROUP）
+        # 扩展配置
+        extension-configs[0]:   # 不自动刷新
+          data-id: test2-config.yml   # 配置文件的名字，这里必须加上后缀
+          group: DEFAULT_GROUP   # 配置文件所在的group，不填默认是DEFAULT_GROUP
+          refresh: true    # 自动刷新
+        extension-configs[1]:
+          data-id: test3-config.yml
+          group: TEST_GROUP
+          refresh: true    # 自动刷新
+        # 共享配置
+        shared-configs[0]:
+          data-id: share-config.yml
+          group: DEFAULT_GROUP   # 配置文件所在的group，不填默认是DEFAULT_GROUP
+          refresh: true   # 自动刷新
+        shared-configs[1]:
+          data-id: share2-config.yml
+          group: DEFAULT_GROUP
+          refresh: true
+        namespace:   # 命名空间，默认是public。如果有其他的命名空间则填命名空间id（如：6c485c62-aad3-49f1-b988-697ebea81c6f）
+        username: nacos
+        password: nacos
+  application:
+    name: test-config     # 该应用的名字，这里使用了nacos配置中心里的DataId（不包括后面的.yml）
