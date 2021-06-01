@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <packaging>pom</packaging>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -15,7 +16,14 @@
     <description>spring cloud advance</description>
 
     <modules>
-        <module>nacos-server</module>
+        <module>nacos-config</module>
+        <module>nacos-serviceA</module>
+        <module>nacos-serviceB</module>
+        <module>hystrix-dashboard</module>
+        <module>hystrix-dashboard-turbine</module>
+        <module>nacos-serviceC</module>
+        <module>nacos-serviceD</module>
+        <module>spring-cloud-gateway</module>
     </modules>
     <properties>
         <java.version>1.8</java.version>

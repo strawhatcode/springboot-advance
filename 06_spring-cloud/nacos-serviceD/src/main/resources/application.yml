@@ -1,0 +1,35 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${nacos.server-addr}  # nacos注册中心地址，集群用逗号分隔
+        namespace: ${nacos.namespace}     # 命令空间
+        username: ${nacos.username}   # nacos用户名
+        password: ${nacos.password}   # nacos密码
+        group: ${nacos.group}
+        enabled: true     # 开启服务发现，默认true
+        metadata:
+          test: "meta"
+  #        service:         # 服务的名字，默认${spring.application.name}
+  application:
+    name: nacos-serviceD
+server:
+  port: 2100
+feign:
+  client:
+    config:
+      nacos-serviceA:  # 服务提供者的服务名称
+        loggerLevel: full   # 日志级别
+  hystrix:
+    enabled: true   # 启动断路器
+logging:
+  level:
+    com.hat.nacos_serviceB: debug   #  当前项目的日志级别
+#nacos-serviceA:  # 服务提供者名称
+#  ribbon:
+#    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RandomRule  # 负载均衡策略
+management:
+  endpoints:
+    web:
+      exposure:
+        include: hystrix.stream    # 暴露的端点，也可以使用'*'暴露所有端点

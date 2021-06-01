@@ -1,0 +1,20 @@
+server:
+  port: 3100
+turbine:
+  aggregator:
+      cluster-config: nacos,DEFAULT,meta    #集群的名字，默认是default。区分大小写
+  app-config: ${test.hystrix.serviceName}    # 服务的名字，即被监控的服务的${spring.application.name}的值
+  cluster-name-expression: metadata['test']  # 集群名字在metadata元数据中的key。
+  combine-host-port: true   # 结合域名与端口来区分服务，例如：localhost:2000与localhost:2001同域名下不同端口，当设置为true时就是两个服务，设置为false时就是同一个服务
+hystrix:
+  dashboard:
+    proxy-stream-allow-list: '*'  # 允许被代理的域名
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${nacosAddr}  # nacos注册中心的服务端地址
+        group: DISCOVERY_GROUP     # 被监控的服务所在的组
+        register-enabled: false    # 不把服务注册到注册中心
+  application:
+    name: hystrix-dashboard-turbine

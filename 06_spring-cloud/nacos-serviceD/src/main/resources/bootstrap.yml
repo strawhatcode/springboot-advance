@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        # 配置文件的文件类型（与自己在配置中心起的dataId后的扩展名一致，
+        # 比如test-config.yml，那就yml；如test-config.yaml，那就yaml。默认是properties）
+        file-extension: yml
+        group: NACOS_GROUP      # Group组名（默认是 DEFAULT_GROUP）
+        name: nacos-discovery   # 配置文件名
+        server-addr: ${nacosAddr}

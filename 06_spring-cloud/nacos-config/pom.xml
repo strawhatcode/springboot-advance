@@ -8,9 +8,9 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
     <groupId>com.hat</groupId>
-    <artifactId>nacos-server</artifactId>
+    <artifactId>nacos-config</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>nacos-server</name>
+    <name>nacos-config</name>
     <description>nacos服务</description>
 
     <properties>

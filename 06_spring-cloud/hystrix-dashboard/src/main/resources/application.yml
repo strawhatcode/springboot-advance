@@ -1,0 +1,5 @@
+server:
+  port: 3000   # 项目的端口号
+hystrix:
+  dashboard:
+    proxy-stream-allow-list: "localhost,127.0.0.1,aaaa"   # 允许的代理域名（地址）列表，即允许哪些服务的地址可以被代理，必须被代理才能监控服务，否则会被提示Unable to connect to Command Metric Stream.

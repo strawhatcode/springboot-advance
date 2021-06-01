@@ -1,0 +1,175 @@
+server:
+  port: 4000
+spring:
+  application:
+    name: spring-cloud-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: predicate-test          # 路由的唯一id
+          uri: http://localhost:2001   # 转发到的地址：serviceB
+#          order: 99       # 优先级，值越大优先级越低
+          predicates:
+            - Path=/**                   # 匹配所有请求
+          filters:
+            - SetRequestHostHeader=abc.tes.com   # 设置一个Host请求头值为abc.tes.com
+
+#          filters:
+#            - name: RequestSize      # 使用RequestSize过滤器
+#              args:
+#                maxSize: 50          # 请求体的最大大小(请求头的content-length)，默认单位是B，默认5000000B，可以用K、M等后缀表示大小
+#          filters:
+#            - name: Retry               # 使用retry过滤器
+#              args:
+#                retries: 3              # 重试次数为3，默认3
+#                methods: GET,POST       # 重试的请求需满足GET,POST两种请求方法，默认GET
+#                statuses: INTERNAL_SERVER_ERROR     # 存在INTERNAL_SERVER_ERROR(500)状态码则重试请求，多个用逗号隔开，可以与series二选一
+#                series: SERVER_ERROR    # 存在SERVER_ERROR系列状态码(500系列)则重试请求.默认SERVER_ERROR，与statuses可以二选一
+#                exceptions: java.io.IOException,org.springframework.cloud.gateway.support.TimeoutException  # 存在IO和TimeOut异常则重试请求，默认IO和Timeout异常
+#                backoff:                # 开启指数补偿算法，默认不开启，写这个参数属性就自动开启
+#                  firstBackoff: 5000   # 补偿算法的第一次延时，单位ms，默认5ms
+#                  maxBackoff: 10000     # 最大延时，单位ms。
+#                  factor: 2             # 算法因子，默认2
+#                  basedOnPreviousValue: false   # 是否基于上一次重试的延时，默认true
+
+
+#          filters:
+#            - StripPrefix=2         #  删除uri前面两段，其中每一段是以 “/(斜杠)“ 分割
+
+#          filters:
+#            - SetStatus=403        # 给下游响应状态码设置为403
+#      set-status:
+#        original-status-header-name: Origin-Status     # 保留原响应码到名为Origin-Status的响应头中
+
+#          filters:
+#            - SetRequestHeader=newHeader,newValue   # 设置一个请求头，如果已存在则覆盖，否则添加
+#            - Path=/eeee/{segment}                   # 匹配特定路径
+
+#          filters:
+#            - SetPath=/service/{segment}   # 设置一个新的uri路径，其中一段{segment}从predicate中获取
+
+#          filters:
+#            - SecureHeaders             # 使用SecureHeaders过滤器
+#      filter:
+#        secure-headers:
+#          content-type-options: change_nosniff    # 修改content-type-options头
+#          disable: referrer-policy, content-security-policy  # 关闭referrerPolicy和contentSecurityPolicy响应头
+
+#          filters:
+#            - RewriteResponseHeader=testHeader, BBB, CCC  # 根据响应头找到所有值，并把值中的BBB改成CCC
+
+#          filters:
+#            - RewriteLocationResponseHeader=ALWAYS_STRIP,Location,cn.bing.com,  # 总是去除uri上的版本路径，修改Location响应头的值为cn.bing.com
+
+#          filters:
+#            - RewritePath=/red(/?.*), /service/$1   # 根据正则表达式替换uri路径
+
+#          filters:
+#            - RemoveRequestParameter=msg   # 删除上游的一个名为msg的参数，再把请求转发到下游
+
+#          filters:
+#            - RemoveResponseHeader=testHeader   # 删除响应头名为testHeader的响应头
+
+#          filters:
+#            - RemoveRequestHeader=hhhhh    # 删除上游名为hhhhh的请求头，再把请求转发到下游（已无hhhhh头）
+
+#          filters:
+#            - RedirectTo=302, http://www.baidu.com    # 把状态码设置为302，然后重定向到http://www.baidu.com
+
+#          filters:
+#            - name: RequestRateLimiter     # 请求速率限制过滤器
+#              args:
+#                keyResolver: "#{@myKeyResolver}"   # 根据自定义的key判断是否允许访问的类，实现keyResolver接口。使用el表达式过去bean
+#                ratelimiter: "#{@redisRateLimiter}"  # 速率限制实现类，默认是根据令牌桶算法，默认是redisRateLimiter类
+#                redis-rate-limiter.replenishRate: 1   # 请求桶的速率。n个/s。这里是 1/s。最小1
+#                redis-rate-limiter.burstCapacity: 3   # 令牌桶的容量。3。最小值是0，默认1
+#                redis-rate-limiter.requestedTokens: 1  # 每个请求需要从桶里取几个令牌，最小值是1,默认是1
+#                statusCode:          # 被拒绝后返回的响应码，默认429
+
+#          filters:
+#            - PreserveHostHeader    # 保留源主机头
+
+#          filters:
+#            - PrefixPath=/service    # 过滤掉前缀uri，如请求有/bbb/a。则转发到serviceB时uri是/service/bbb/a
+
+#          filters:
+#            - MapRequestHeader=hhhhh,changeHeader  # 从上游请求的请求头中取头为hhhhh的值，并把值赋给changeHeader头，然后把changeHeader头传给下游地址
+
+#          filters:
+#            - name: Hystrix      # 使用哪一种断路器，这里使用的是Hystrix
+#              args:
+#                name: myHystrix   # 断路器名称
+##                fallbackUri: forward:/fallback   # 当服务断路后转发到的uri
+#                fallbackUri: forward:/service/aaaaa   # 当服务断路后转发到的uri
+#        - id: fallback2ServiceB
+#          uri: http://localhost:2001
+#          order: 1       # 优先级，值越大优先级越低
+#          predicates:
+#            - Path=/*/aaaaa                   # 匹配fallback请求
+#          filters:
+#            - name: FallbackHeaders
+#              args:
+#                executionExceptionTypeHeaderName:
+#                executionExceptionMessageHeaderName:
+#                rootCauseExceptionTypeHeaderName:
+#                rootCauseExceptionMessageHeaderName:
+
+#          filters:
+#            - DedupeResponseHeader=testHeader           # 根据某种规则取相同响应头中的某一个或多个值（默认取第一个）
+#            - DedupeResponseHeader=testHeader,RETAIN_LAST   # 取相同响应头中的最后一个值
+#            - DedupeResponseHeader=testHeader,RETAIN_UNIQUE   # 取相同响应头中的唯一值
+
+#          filtsers:
+#            - AddResponseHeader=resHeader,newResHead   # 给响应添加一个响应头
+
+#          filters:
+#            - AddRequestParameter=msg,gateway-param   # 给请求添加一个查询参数
+
+#          filters:
+#            - AddRequestHeader=newHeader,newwww   # 给请求添加一个请求头
+#            - AddRequestHeader=newHeader,newwww-{sub}   # 给请求添加一个请求头
+
+
+#          predicates:
+#            - RemoteAddr=127.0.0.1      # 匹配一个地址
+#            - RemoteAddr=99.11.52.0/24    # 匹配一段地址
+#            - RemoteAddr=99.11.52.0/25    # 匹配一段地址
+
+#          predicates:
+#            - Weight=group1,7    # 在组group1内权重是7。相当于70%
+#        - id: predicate-test2
+#          uri: http://localhost:2100
+#          predicates:
+#            - Weight=group1,3    # 在组group1内权重是3。相当于30%
+
+#          predicates:
+#            - Query=val  # 匹配参数
+#            - Header=hhhhh,^hat$   # 匹配请求头中hhhhh的值是hat，第二个参数是正则表达式
+#            - Query=val,[\d]*  # 匹配参数，且值必须为数字
+
+#          predicates:
+#            - Path=/serviceB/{anyPath}/**  # 匹配uri路径
+
+#          predicates:
+#            - Path=POST  # 匹配http请求方法
+
+#          predicates:
+#            - Host=localhost:4000,{sub:test}.gateway.*:4000  # 匹配域名，可以使用Ant规则定义，多个规则使用逗号分隔
+
+#          predicates:
+#            - Header=hhhhh,^hat$   # 匹配请求头中hhhhh的值是hat，第二个参数是正则表达式
+
+#          predicates:
+#            - Cookie=num,[\d]*   # [num]是cookie的key，[\d*]是cookie的value。其中value是正则表达式
+
+#          predicates:
+#            - Between=2020-01-20T17:42:47.789-08:00[Asia/Shanghai],2021-01-20T17:42:47.789-08:00[Asia/Shanghai]   # 在这两段时间之间的可以匹配。可以匹配
+#            - Between=2021-01-20T17:42:47.789-08:00[Asia/Shanghai],2022-01-20T17:42:47.789-08:00[Asia/Shanghai]   # 当前时间不在这两时间之间。不可以匹配
+
+#          predicates:
+#            - Before=2020-01-20T17:42:47.789-08:00[Asia/Shanghai]   # 在该时间之前的可以匹配。可以匹配
+#            - Before=2021-01-20T17:42:47.789-08:00[Asia/Shanghai]   # 在该时间之前的可以匹配。不可以匹配
+
+#          predicates:
+#            - After=2020-01-20T17:42:47.789-08:00[Asia/Shanghai]   # 在该时间之后。可以匹配
+#            - After=2021-01-20T17:42:47.789-08:00[Asia/Shanghai]    # 当前时间比该值小，不可以匹配

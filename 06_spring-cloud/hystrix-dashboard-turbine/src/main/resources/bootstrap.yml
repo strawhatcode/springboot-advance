@@ -1,0 +1,8 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        server-addr: ${nacosAddr}
+        name: hystrix-turbine
+        group: HYSTRIX_GROUP
+        file-extension: yml
